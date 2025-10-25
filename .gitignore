@@ -1,0 +1,14 @@
+node_modules/
+.dist/
+dist/
+.vscode/
+.DS_Store
+*.log
+*.lock
+npm-debug.log*
+.idea/
+.env.local
+.env.*.local
+# Ignore accidental TS emits inside src
+src/**/*.js
+src/**/*.js.map

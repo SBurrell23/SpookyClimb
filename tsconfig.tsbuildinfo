@@ -1,0 +1,1 @@
+{"root":["./src/env.d.ts","./src/main.ts","./src/game/camera.ts","./src/game/enemies.ts","./src/game/entities.ts","./src/game/game.ts","./src/game/input.ts","./src/game/levels.ts","./src/game/physics.ts","./src/game/renderer.ts","./src/game/types.ts","./src/game/utils/draw.ts","./src/app.vue","./src/components/gamecanvas.vue"],"version":"5.9.3"}
