@@ -100,6 +100,19 @@ export function playJump() {
 	o.stop(t0 + 0.12)
 }
 
+export function playDoubleJump() {
+    ensureCtx()
+    const t0 = now()
+    // Similar to first jump, but a touch higher and quieter
+    const o = osc('triangle', 560)
+    const g = createGain(0)
+    env(g, t0, 0.003, 0.06, 0.0, 0.08, 0.45)
+    o.connect(g).connect(master!)
+    o.start(t0)
+    o.frequency.exponentialRampToValueAtTime(320, t0 + 0.08)
+    o.stop(t0 + 0.12)
+}
+
 export function playLand() {
 	ensureCtx()
 	const t0 = now()

@@ -1,6 +1,6 @@
 import type { EnemyPlaceholder, GameDimensions, LevelDefinition, Player, Platform } from './types'
 import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer, drawSpookyBackground, drawDoor, updateAndDrawDust, Dust, drawVignette } from './utils/draw'
-import { playThunder, stopMenuMusic, stopRainAmbience } from './audio'
+import { playThunder, stopMenuMusic, stopRainAmbience, startRainAmbience, setRainIntensity } from './audio'
 
 export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensions) {
 	let time = 0
@@ -80,6 +80,9 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			// Little neutral ghost below
 			drawHappyGhost(ctx, view.width / 2 - 16, view.height * 0.55, 32, 44, time, false)
 			drawVignette(ctx, view.width, view.height)
+			// Soft rain ambience on start screen
+			startRainAmbience()
+			setRainIntensity(0.12)
 		},
 			renderEndScreen(levelTimes: number[], total: number, levelNames: string[]) {
             time += 1 / 60

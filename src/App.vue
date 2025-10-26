@@ -1,9 +1,6 @@
 <template>
 	<div class="app-root">
 		<GameCanvas class="game-canvas" />
-		<div class="help">
-			<p>Controls: A/D or ←/→ to move, Space to jump, 1-5 to change level, R to reset</p>
-		</div>
 	</div>
 </template>
 

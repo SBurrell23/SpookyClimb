@@ -4,7 +4,7 @@ import { createInput } from './input'
 import { LEVELS } from './levels'
 import { createPlayer, stepPlayer } from './physics'
 import { createCamera } from './camera'
-import { playJump, playLand, playDoor, startRainAmbience, setRainIntensity, playDeath } from './audio'
+import { playJump, playDoubleJump, playLand, playDoor, startRainAmbience, setRainIntensity, playDeath } from './audio'
 
 export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	const ctx = canvas.getContext('2d')!
@@ -233,8 +233,18 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		const jumpPressed = input.state.jump && !prevJumpHeld
 		const jumpHeld = input.state.jump
 		const coyoteAvailable = coyoteTimer > 0
+		// We need to know whether the jump consumed the mid-air jump; call step first then infer
+		const wasOnGroundBefore = player.onGround
+		const airJumpsLeftBefore = (player as any).airJumpsLeft as number | undefined
 		stepPlayer(player, dt, { left: input.state.left, right: input.state.right, jumpPressed, jumpHeld, down: input.state.down, coyoteAvailable }, currPlatforms)
-		if (jumpPressed && (player.onGround || coyoteAvailable)) playJump()
+		if (jumpPressed) {
+			const airAfter = (player as any).airJumpsLeft as number | undefined
+			if (wasOnGroundBefore || coyoteAvailable) {
+				playJump()
+			} else if ((airJumpsLeftBefore ?? 0) > (airAfter ?? 0)) {
+				playDoubleJump()
+			}
+		}
 		prevJumpHeld = input.state.jump
 
 		// Update coyote timer based on grounded state

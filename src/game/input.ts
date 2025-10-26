@@ -25,13 +25,13 @@ export function createInput() {
 			case 's':
 			case 'S':
 			case 'ArrowDown': state.down = true; break
-			case 'r':
-			case 'R': state.reset = true; break
-			case '1': state.level = 1; break
-			case '2': state.level = 2; break
-			case '3': state.level = 3; break
-			case '4': state.level = 4; break
-			case '5': state.level = 5; break
+			// case 'r':
+			// case 'R': state.reset = true; break
+			// case '1': state.level = 1; break
+			// case '2': state.level = 2; break
+			// case '3': state.level = 3; break
+			// case '4': state.level = 4; break
+			// case '5': state.level = 5; break
 		}
 	}
 
@@ -50,8 +50,8 @@ export function createInput() {
 			case 's':
 			case 'S':
 			case 'ArrowDown': state.down = false; break
-			case 'r':
-			case 'R': state.reset = false; break
+			// case 'r':
+			// case 'R': state.reset = false; break
 		}
 	}
 
