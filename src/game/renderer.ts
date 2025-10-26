@@ -6,6 +6,14 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 	const dust: Dust[] = []
 	let bestProgress = 0
 	let lastLevelId: number | undefined
+	// Ambient bats
+	type Bat = { x: number; y: number; vx: number; scale: number; life: number; flapOffset: number }
+	const bats: Bat[] = []
+	let batCooldown = 0
+	// Lightning state
+	let lightningTime = 0
+	let lightningPoints: { x: number; y: number }[] = []
+
 	return {
 		spawnDust(x: number, y: number) {
 			// Moderate dust burst
@@ -20,11 +28,11 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 		},
 		triggerFlash(durationSec = 0.6) {
 			// implemented in previous edit file; kept for compatibility
-			(this as any)._flashDuration = durationSec
+			;(this as any)._flashDuration = durationSec
 			;(this as any)._flashTime = durationSec
 		},
 		triggerFadeIn(durationSec = 0.4) {
-			(this as any)._fadeInDuration = durationSec
+			;(this as any)._fadeInDuration = durationSec
 			;(this as any)._fadeInTime = durationSec
 		},
 		renderStartScreen(title = 'Spooky Climb', subtitle = 'Press Space to Play', palette = { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }) {
@@ -89,24 +97,69 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			;(this as any)._fadeInDuration = (this as any)._fadeInDuration ?? 0.4
 			if ((this as any)._flashTime > 0) (this as any)._flashTime -= dt
 			if ((this as any)._fadeInTime > 0) (this as any)._fadeInTime -= dt
-			// Reset best when level changes
-			if (lastLevelId !== level.id) { bestProgress = 0; lastLevelId = level.id }
+			// Reset best and ambient when level changes
+			if (lastLevelId !== level.id) { bestProgress = 0; lastLevelId = level.id; bats.length = 0; batCooldown = 0; lightningTime = 0 }
 			// Background
 			document.body.style.setProperty('--bg1', level.palette.sky)
 			document.body.style.setProperty('--bg2', 'rgba(0,0,0,0.9)')
 			document.body.style.setProperty('--bg3', 'rgba(0,0,0,1)')
-			// Accent (outline) derived from fog color
 			const fog = level.palette.fog
 			document.body.style.setProperty('--accent-border', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.45)'))
 			document.body.style.setProperty('--accent-shadow', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
 			drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0)
 			drawFog(ctx, view.width, view.height, time, level.palette.fog)
 
+			// Calculate progress (0..1)
+			const levelTop = level.exitDoor.y
+			const spawnBottom = level.spawn.y + player.height
+			const playerBottomNow = player.pos.y + player.height
+			const totalClimbHeight = Math.max(1, spawnBottom - levelTop)
+			const playerClimbProgress = spawnBottom - playerBottomNow
+			const progress = Math.max(0, Math.min(1, playerClimbProgress / totalClimbHeight))
+
+			// Update bats
+			batCooldown -= dt
+			if (batCooldown <= 0) {
+				const spawnChance = 0.35 // average ~1 bat every few seconds
+				if (Math.random() < spawnChance * dt) {
+					const fromLeft = Math.random() < 0.5
+					const speed = 80 + Math.random() * 100
+					const y = camera.y + 60 + Math.random() * (view.height - 140)
+					const x = fromLeft ? camera.x - 60 : camera.x + view.width + 60
+					bats.push({ x, y, vx: fromLeft ? speed : -speed, scale: 0.8 + Math.random() * 0.6, life: 6, flapOffset: Math.random() * Math.PI * 2 })
+					batCooldown = 0.6 + Math.random() * 1.4
+				}
+			}
+			for (let i = bats.length - 1; i >= 0; i--) {
+				const b = bats[i]!
+				b.x += b.vx * dt
+				b.life -= dt
+				if (b.life <= 0 || b.x < camera.x - 200 || b.x > camera.x + view.width + 200) bats.splice(i, 1)
+			}
+
 			ctx.save()
 			ctx.translate(-camera.x, -camera.y)
+			// Lightning bolt behind platforms (world space)
+			if (progress >= 0.75 && lightningTime > 0) {
+				ctx.save()
+				ctx.strokeStyle = 'rgba(208,233,255,0.95)'
+				ctx.lineWidth = 3
+				ctx.shadowColor = 'rgba(180,220,255,0.9)'
+				ctx.shadowBlur = 18
+				ctx.beginPath()
+				for (let i = 0; i < lightningPoints.length; i++) {
+					const p = lightningPoints[i]!
+					if (i === 0) ctx.moveTo(p.x, p.y)
+					else ctx.lineTo(p.x, p.y)
+				}
+				ctx.stroke()
+				ctx.restore()
+			}
 			drawPlatforms(ctx, platforms, level.palette.ground, level.visualSeed ?? 0)
 			// Midground fog in world-space but between platforms and player/items
 			drawMidgroundFog(ctx, view.width, view.height, time, level.palette.fog, 0.06, 0.03, camera.x, camera.y)
+			// Bats in front of fog but behind player/items
+			for (const b of bats) drawBat(ctx, b.x, b.y, b.scale, time + b.flapOffset)
 			// Door
 			drawDoor(ctx, level.exitDoor.x, level.exitDoor.y, level.exitDoor.w, level.exitDoor.h)
 			// No collectibles
@@ -141,27 +194,21 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.strokeStyle = 'rgba(255,255,255,0.15)'
 			ctx.lineWidth = 2
 			ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1)
-			// Progress calc
-			const startY = level.spawn.y
-			const endY = level.exitDoor.y
-			const denom = Math.max(1, startY - endY)
-			let prog = (startY - player.pos.y) / denom
-			if (prog < 0) prog = 0
-			if (prog > 1) prog = 1
-			bestProgress = Math.max(bestProgress, prog)
+			// Progress calc reused
+			bestProgress = Math.max(bestProgress, progress)
 			// Best overlay (faded gray up to best)
 			const bestFill = Math.floor(barH * bestProgress)
 			ctx.fillStyle = 'rgba(255,255,255,0.2)'
 			ctx.fillRect(barX + 2, barY + barH - bestFill + 2, barW - 4, bestFill - 4 < 0 ? 0 : bestFill - 4)
 			// Current progress fill (bottom -> top)
-			const fillH = Math.floor(barH * prog)
+			const fillH = Math.floor(barH * progress)
 			const grad = ctx.createLinearGradient(0, barY + barH - fillH, 0, barY + barH)
 			grad.addColorStop(0, 'rgba(16,185,129,0.9)')
 			grad.addColorStop(1, 'rgba(34,197,94,0.9)')
 			ctx.fillStyle = grad
 			ctx.fillRect(barX + 2, barY + barH - fillH + 2, barW - 4, fillH - 4 < 0 ? 0 : fillH - 4)
 			// Completion glow at top
-			if (prog >= 1) {
+			if (progress >= 1) {
 				const pulse = (Math.sin(time * 6) + 1) * 0.5
 				ctx.save()
 				ctx.globalAlpha = 0.3 + 0.4 * pulse
@@ -170,6 +217,38 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.restore()
 			}
 			ctx.restore()
+
+			// Lightning (above 75% progress) generation + screen flash only (bolt drawn behind platforms earlier)
+			if (progress >= 0.75) {
+				if (lightningTime <= 0 && Math.random() < 0.25 * dt) {
+					lightningTime = 0.28
+					// Generate a jagged bolt path in world space
+					const startX = camera.x + 80 + Math.random() * (view.width - 160)
+					const startY = camera.y - 40
+					const segs = 8 + Math.floor(Math.random() * 6)
+					lightningPoints = [{ x: startX, y: startY }]
+					let px = startX
+					let py = startY
+					for (let i = 0; i < segs; i++) {
+						px += (Math.random() - 0.5) * 140
+						py += (view.height / segs) * (0.7 + Math.random() * 0.6)
+						lightningPoints.push({ x: px, y: py })
+					}
+					// ensure it extends below the screen bottom
+					const bottomY = camera.y + view.height + 80
+					if (py < bottomY) lightningPoints.push({ x: px + (Math.random() - 0.5) * 120, y: bottomY })
+				}
+				if (lightningTime > 0) {
+					lightningTime -= dt
+					// flash overlay only
+					const flash = Math.max(0, Math.min(1, lightningTime / 0.28))
+					ctx.save()
+					ctx.globalAlpha = 0.22 * flash
+					ctx.fillStyle = 'rgba(210,230,255,1)'
+					ctx.fillRect(0, 0, view.width, view.height)
+					ctx.restore()
+				}
+			}
 
 			// Flash overlay (dim + color pulse)
 			if ((this as any)._flashTime > 0) {
@@ -238,6 +317,27 @@ function drawHappyGhost(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
 		ctx.ellipse(0, -h + 26, 5.5, 3, 0, 0, Math.PI * 2)
 		ctx.fill()
 	}
+	ctx.restore()
+}
+
+function drawBat(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, t: number) {
+	ctx.save()
+	ctx.translate(x, y)
+	ctx.scale(scale, scale)
+	const flap = Math.sin(t * 12) * 0.7 + 0.3
+	ctx.fillStyle = 'rgba(10,12,16,0.9)'
+	ctx.beginPath()
+	// body
+	ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI * 2)
+	// left wing
+	ctx.moveTo(0, 0)
+	ctx.quadraticCurveTo(-10, -4 - 6 * flap, -18, 0)
+	ctx.quadraticCurveTo(-10, 2 + 6 * flap, 0, 0)
+	// right wing
+	ctx.moveTo(0, 0)
+	ctx.quadraticCurveTo(10, -4 - 6 * flap, 18, 0)
+	ctx.quadraticCurveTo(10, 2 + 6 * flap, 0, 0)
+	ctx.fill()
 	ctx.restore()
 }
 
