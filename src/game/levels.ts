@@ -83,21 +83,12 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	const doorX = top.x + doorLocalX
 	const doorY = top.y - 80
 
-	const len = platforms.length
-	const idxA = clamp(Math.floor(len * 0.3), 1, len - 1)
-	const idxB = clamp(Math.floor(len * 0.7), 1, len - 1)
-	const pA = platforms[idxA]!
-	const pB = platforms[idxB]!
-
 	return {
 		id,
 		spawn,
 		bounds: { x: 0, y: 0, w: width, h: height },
 		platforms,
-		collectibles: [
-			{ x: pA.x + 40, y: pA.y - 40, w: 16, h: 16, type: 'lantern', attachToPlatformId: pA.id, localOffsetX: 40 },
-			{ x: pB.x + 60, y: pB.y - 40, w: 16, h: 16, type: 'key', attachToPlatformId: pB.id, localOffsetX: 60 },
-		],
+		collectibles: [],
 		enemies: [],
 		exitDoor: { x: doorX, y: doorY, w: 40, h: 80, type: 'door', targetLevelId: ((id) % 3) + 1, attachToPlatformId: doorAttach, localOffsetX: doorLocalX },
 		palette: id === 1 ? { sky: '#0b1220', fog: 'rgba(168,85,247,0.10)', ground: '#1f2937' } // purple night
@@ -124,7 +115,7 @@ function mulberry32(a: number) {
 export const LEVELS: LevelDefinition[] = [
 	generateVerticalLevel(1, 1600, 9600, 1337, 35),
 	generateVerticalLevel(2, 1600, 9600, 424242, 50),
-	generateVerticalLevel(3, 1600, 9600, 9876, 75),
-	generateVerticalLevel(4, 1600, 9600, 20241, 100),
-	generateVerticalLevel(5, 1600, 9600, 55555, 150),
+	generateVerticalLevel(3, 1600, 9600, 9876, 85),
+	generateVerticalLevel(4, 1600, 9600, 20241, 125),
+	generateVerticalLevel(5, 1600, 9600, 55555, 166),
 ]

@@ -3,7 +3,6 @@ import { createRenderer } from './renderer'
 import { createInput } from './input'
 import { LEVELS } from './levels'
 import { createPlayer, stepPlayer } from './physics'
-import { collectItems } from './entities'
 import { createCamera } from './camera'
 
 export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
@@ -107,12 +106,6 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	function attachEntitiesToPlatforms(platforms: Platform[]) {
 		const idToPlatform = new Map<number, Platform>()
 		for (const p of platforms) idToPlatform.set(p.id, p)
-		for (const c of level.collectibles) {
-			if (c.attachToPlatformId != null && c.localOffsetX != null) {
-				const p = idToPlatform.get(c.attachToPlatformId)
-				if (p) c.x = p.x + c.localOffsetX
-			}
-		}
 		const d = level.exitDoor
 		if (d.attachToPlatformId != null && d.localOffsetX != null) {
 			const p = idToPlatform.get(d.attachToPlatformId)
@@ -206,8 +199,6 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 				}
 			}
 		}
-
-		collectItems(player, level.collectibles)
 
 		// Door overlap check
 		if (isMostlyOverlappingDoor()) {

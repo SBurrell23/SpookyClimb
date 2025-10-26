@@ -29,6 +29,12 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 		},
 		renderStartScreen(title = 'Spooky Climb', subtitle = 'Press Space to Play', palette = { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }) {
 			time += 1 / 60
+			// Set page background/accent to match start palette
+			document.body.style.setProperty('--bg1', palette.sky)
+			document.body.style.setProperty('--bg2', 'rgba(0,0,0,0.9)')
+			document.body.style.setProperty('--bg3', 'rgba(0,0,0,1)')
+			document.body.style.setProperty('--accent-border', palette.fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.45)'))
+			document.body.style.setProperty('--accent-shadow', palette.fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
 			drawSpookyBackground(ctx, view.width, view.height, palette.sky)
 			drawFog(ctx, view.width, view.height, time, palette.fog)
 			// Title
@@ -103,7 +109,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			drawMidgroundFog(ctx, view.width, view.height, time, level.palette.fog, 0.06, 0.03, camera.x, camera.y)
 			// Door
 			drawDoor(ctx, level.exitDoor.x, level.exitDoor.y, level.exitDoor.w, level.exitDoor.h)
-			drawCollectibles(ctx, level.collectibles, time)
+			// No collectibles
 			drawPlayer(ctx, player, time)
 			updateAndDrawDust(ctx, dust, dt)
 			ctx.restore()

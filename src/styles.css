@@ -1,8 +1,15 @@
 html, body, #app { height: 100%; }
 * { box-sizing: border-box; }
+:root {
+	--bg1: #0b1020; /* darker center */
+	--bg2: #070c14;
+	--bg3: #04070d;
+	--accent-border: rgba(124, 58, 237, 0.45);
+	--accent-shadow: rgba(124, 58, 237, 0.25);
+}
 body {
 	margin: 0;
-	background: radial-gradient(1200px 600px at 50% -100px, var(--bg1, #121826) 0%, var(--bg2, #0b0f18) 45%, var(--bg3, #070b12) 100%);
+	background: radial-gradient(1200px 600px at 50% -100px, var(--bg1, #0b1020) 0%, var(--bg2, #070c14) 45%, var(--bg3, #04070d) 100%);
 	color: #e2e8f0;
 	font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 	transition: background 600ms ease;
