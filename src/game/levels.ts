@@ -22,7 +22,8 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	const baseX = Math.floor((width - baseWidth) / 2)
 	platforms.push(rect(baseX, baseGroundHeight, baseWidth, 80, 0))
 
-	const spawn = { x: baseX + 40, y: baseGroundHeight - playerHeight }
+	// Center the spawn on the starting platform (player width ≈ 32)
+	const spawn = { x: Math.floor(baseX + baseWidth / 2 - 16), y: baseGroundHeight - playerHeight }
 
 	const margin = 80
 	const widthMin = 120
@@ -99,12 +100,12 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 		],
 		enemies: [],
 		exitDoor: { x: doorX, y: doorY, w: 40, h: 80, type: 'door', targetLevelId: ((id) % 3) + 1, attachToPlatformId: doorAttach, localOffsetX: doorLocalX },
-		palette: id === 1 ? { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)', ground: '#1f2937' }
-			: id === 2 ? { sky: '#0a0e19', fog: 'rgba(34,197,94,0.06)', ground: '#111827' }
-			: id === 3 ? { sky: '#0b0b17', fog: 'rgba(59,130,246,0.06)', ground: '#0f172a' }
-			: id === 4 ? { sky: '#0a0c16', fog: 'rgba(16,185,129,0.06)', ground: '#0f172a' }
-			: { sky: '#0a0b12', fog: 'rgba(251,191,36,0.06)', ground: '#111827' },
-		title: id === 1 ? 'Grave Climb' : id === 2 ? 'Swamp Spire' : id === 3 ? 'Cathedral Ascent' : id === 4 ? 'Crypt Rise' : 'Belfry Summit',
+		palette: id === 1 ? { sky: '#0b1220', fog: 'rgba(168,85,247,0.10)', ground: '#1f2937' } // purple night
+			: id === 2 ? { sky: '#0a0e19', fog: 'rgba(34,197,94,0.10)', ground: '#111827' } // swamp green
+			: id === 3 ? { sky: '#0b0b17', fog: 'rgba(59,130,246,0.10)', ground: '#0f172a' } // cathedral blue
+			: id === 4 ? { sky: '#120a05', fog: 'rgba(251,146,60,0.12)', ground: '#1a130d' } // crypt orange
+			: { sky: '#140707', fog: 'rgba(239,68,68,0.12)', ground: '#1a0e0e' }, // belfry red
+		title: id === 1 ? 'Grave Beginnings' : id === 2 ? 'Swampy Spire' : id === 3 ? 'Mausoleum Rise' : id === 4 ? 'Cathedral Ascent' : 'The Bloody Summit',
 		visualSeed: seed,
 	}
 }
@@ -121,9 +122,9 @@ function mulberry32(a: number) {
 }
 
 export const LEVELS: LevelDefinition[] = [
-	generateVerticalLevel(1, 1600, 9600, 1337, 36),
-	generateVerticalLevel(2, 1600, 9600, 4242, 42),
-	generateVerticalLevel(3, 1600, 9600, 9876, 45),
-	generateVerticalLevel(4, 1600, 9600, 20241, 48),
-	generateVerticalLevel(5, 1600, 9600, 55555, 54),
+	generateVerticalLevel(1, 1600, 9600, 1337, 35),
+	generateVerticalLevel(2, 1600, 9600, 424242, 45),
+	generateVerticalLevel(3, 1600, 9600, 9876, 66),
+	generateVerticalLevel(4, 1600, 9600, 20241, 75),
+	generateVerticalLevel(5, 1600, 9600, 55555, 100),
 ]

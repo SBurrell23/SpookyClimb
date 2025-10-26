@@ -10,30 +10,39 @@ export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h
 	// Stars
 	drawStars(ctx, w, h, visualSeed)
 
-	// Moon
+	// Seeded moon placement and size
+	const rGen = seededRand((visualSeed ?? 12345) ^ 0x9e3779b9)
+	const moonXRatio = 0.2 + rGen() * 0.65 // 20%..85% of width
+	const moonYRatio = 0.12 + rGen() * 0.12 // 12%..24% of height
+	const moonRadius = 24 + rGen() * 30 // px; min 24, max 54
 	ctx.save()
 	ctx.globalAlpha = 0.9
 	ctx.fillStyle = '#e5e7eb'
 	ctx.beginPath()
-	ctx.arc(w * 0.8, h * 0.18, 40, 0, Math.PI * 2)
+	ctx.arc(w * moonXRatio, h * moonYRatio, moonRadius, 0, Math.PI * 2)
 	ctx.fill()
 	ctx.restore()
 
-	// Mountains silhouettes
+	// Mountains silhouettes - seeded variation per layer
 	ctx.save()
 	ctx.fillStyle = '#0a0f1a'
-	for (let i = 0; i < 5; i++) {
-		const baseY = h * 0.65 + i * 8
+	const layers = 5
+	let phase = rGen() * Math.PI * 2
+	for (let i = 0; i < layers; i++) {
+		const baseY = h * (0.62 + i * 0.035)
+		const amp = 30 + rGen() * 45 // 30..75
+		const freq = 0.012 + rGen() * 0.02 // 0.012..0.032
+		phase += rGen() * 3
 		ctx.beginPath()
 		ctx.moveTo(0, baseY)
 		for (let x = 0; x <= w; x += 40) {
-			const y = baseY - 60 - Math.sin((x + i * 23) * 0.02) * 30
+			const y = baseY - 40 - Math.sin(x * freq + phase + i * 0.7) * amp
 			ctx.lineTo(x, y)
 		}
 		ctx.lineTo(w, h)
 		ctx.lineTo(0, h)
 		ctx.closePath()
-		ctx.globalAlpha = 0.15 + i * 0.12
+		ctx.globalAlpha = 0.12 + i * 0.12
 		ctx.fill()
 	}
 	ctx.restore()
@@ -420,15 +429,15 @@ export function drawCollectibles(ctx: CanvasRenderingContext2D, items: Collectib
 
 export type Dust = { x: number; y: number; vx: number; vy: number; life: number }
 export function spawnLandingDust(dust: Dust[], x: number, y: number) {
-	for (let i = 0; i < 6; i++) {
-		const angle = (-Math.PI / 2) + (Math.random() - 0.5) * 0.6
-		const speed = 80 + Math.random() * 60
-		dust.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.4 + Math.random() * 0.2 })
+	for (let i = 0; i < 5; i++) {
+		const angle = (-Math.PI / 2) + (Math.random() - 0.5) * 0.8
+		const speed = 90 + Math.random() * 60
+		dust.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.45 + Math.random() * 0.2 })
 	}
 }
 export function updateAndDrawDust(ctx: CanvasRenderingContext2D, dust: Dust[], dt: number) {
 	ctx.save()
-	ctx.fillStyle = 'rgba(148,163,184,0.6)'
+	ctx.fillStyle = 'rgba(148,163,184,0.65)'
 	for (let i = dust.length - 1; i >= 0; i--) {
 		const p = dust[i]
 		if (!p) continue
@@ -436,11 +445,11 @@ export function updateAndDrawDust(ctx: CanvasRenderingContext2D, dust: Dust[], d
 		if (p.life <= 0) { dust.splice(i, 1); continue }
 		p.x += p.vx * dt
 		p.y += p.vy * dt
-		p.vy += 900 * dt
+		p.vy += 1000 * dt
 		const alpha = Math.max(0, Math.min(1, p.life / 0.6))
 		ctx.globalAlpha = alpha
 		ctx.beginPath()
-		ctx.arc(p.x, p.y, 2, 0, Math.PI * 2)
+		ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2)
 		ctx.fill()
 	}
 	ctx.restore()

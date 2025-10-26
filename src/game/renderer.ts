@@ -4,10 +4,19 @@ import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer,
 export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensions) {
 	let time = 0
 	const dust: Dust[] = []
+	let bestProgress = 0
+	let lastLevelId: number | undefined
 	return {
 		spawnDust(x: number, y: number) {
-			// Allow game to trigger dust (smaller particles)
-			dust.push({ x, y, vx: (Math.random() - 0.5) * 100, vy: -120 + (Math.random() - 0.5) * 30, life: 0.35 })
+			// Moderate dust burst
+			const p = {
+				x,
+				y,
+				vx: (Math.random() - 0.5) * 120,
+				vy: -120 + (Math.random() - 0.5) * 60,
+				life: 0.4 + Math.random() * 0.2,
+			}
+			dust.push(p)
 		},
 		triggerFlash(durationSec = 0.6) {
 			// implemented in previous edit file; kept for compatibility
@@ -36,7 +45,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.font = '20px ui-sans-serif, system-ui, -apple-system, Segoe UI'
 			ctx.fillText(subtitle, view.width / 2, view.height * 0.35 + 42)
 			ctx.restore()
-			// Little happy ghost below
+			// Little neutral ghost below
 			drawHappyGhost(ctx, view.width / 2 - 16, view.height * 0.55, 32, 44, time, false)
 			drawVignette(ctx, view.width, view.height)
 		},
@@ -74,7 +83,12 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			;(this as any)._fadeInDuration = (this as any)._fadeInDuration ?? 0.4
 			if ((this as any)._flashTime > 0) (this as any)._flashTime -= dt
 			if ((this as any)._fadeInTime > 0) (this as any)._fadeInTime -= dt
+			// Reset best when level changes
+			if (lastLevelId !== level.id) { bestProgress = 0; lastLevelId = level.id }
 			// Background
+			document.body.style.setProperty('--bg1', level.palette.sky)
+			document.body.style.setProperty('--bg2', 'rgba(0,0,0,0.9)')
+			document.body.style.setProperty('--bg3', 'rgba(0,0,0,1)')
 			drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0)
 			drawFog(ctx, view.width, view.height, time, level.palette.fog)
 
@@ -99,6 +113,54 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.fillText(level.title, 12, 10)
 			ctx.restore()
 
+			// Vignette on top
+			drawVignette(ctx, view.width, view.height)
+
+			// Right-side vertical progress bar
+			ctx.save()
+			const barW = 18
+			const margin = 12
+			const barX = view.width - barW - margin
+			const barY = margin
+			const barH = view.height - margin * 2
+			// Track
+			ctx.globalAlpha = 0.8
+			ctx.fillStyle = 'rgba(15,23,42,0.6)'
+			ctx.fillRect(barX, barY, barW, barH)
+			ctx.globalAlpha = 1
+			ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+			ctx.lineWidth = 2
+			ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1)
+			// Progress calc
+			const startY = level.spawn.y
+			const endY = level.exitDoor.y
+			const denom = Math.max(1, startY - endY)
+			let prog = (startY - player.pos.y) / denom
+			if (prog < 0) prog = 0
+			if (prog > 1) prog = 1
+			bestProgress = Math.max(bestProgress, prog)
+			// Best overlay (faded gray up to best)
+			const bestFill = Math.floor(barH * bestProgress)
+			ctx.fillStyle = 'rgba(255,255,255,0.2)'
+			ctx.fillRect(barX + 2, barY + barH - bestFill + 2, barW - 4, bestFill - 4 < 0 ? 0 : bestFill - 4)
+			// Current progress fill (bottom -> top)
+			const fillH = Math.floor(barH * prog)
+			const grad = ctx.createLinearGradient(0, barY + barH - fillH, 0, barY + barH)
+			grad.addColorStop(0, 'rgba(16,185,129,0.9)')
+			grad.addColorStop(1, 'rgba(34,197,94,0.9)')
+			ctx.fillStyle = grad
+			ctx.fillRect(barX + 2, barY + barH - fillH + 2, barW - 4, fillH - 4 < 0 ? 0 : fillH - 4)
+			// Completion glow at top
+			if (prog >= 1) {
+				const pulse = (Math.sin(time * 6) + 1) * 0.5
+				ctx.save()
+				ctx.globalAlpha = 0.3 + 0.4 * pulse
+				ctx.fillStyle = 'rgba(250,204,21,0.9)'
+				ctx.fillRect(barX + 2, barY + 2, barW - 4, 8)
+				ctx.restore()
+			}
+			ctx.restore()
+
 			// Flash overlay (dim + color pulse)
 			if ((this as any)._flashTime > 0) {
 				const remain = (this as any)._flashTime
@@ -115,9 +177,6 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.fillRect(0, 0, view.width, view.height)
 				ctx.restore()
 			}
-
-			// Vignette on top
-			drawVignette(ctx, view.width, view.height)
 
 			// Fade-in overlay after respawn
 			if ((this as any)._fadeInTime > 0) {
