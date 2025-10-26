@@ -89,6 +89,10 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			document.body.style.setProperty('--bg1', level.palette.sky)
 			document.body.style.setProperty('--bg2', 'rgba(0,0,0,0.9)')
 			document.body.style.setProperty('--bg3', 'rgba(0,0,0,1)')
+			// Accent (outline) derived from fog color
+			const fog = level.palette.fog
+			document.body.style.setProperty('--accent-border', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.45)'))
+			document.body.style.setProperty('--accent-shadow', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
 			drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0)
 			drawFog(ctx, view.width, view.height, time, level.palette.fog)
 

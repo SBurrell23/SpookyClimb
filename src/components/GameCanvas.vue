@@ -26,8 +26,8 @@ onUnmounted(() => {
 
 <style scoped>
 .canvas-wrap {
-	border: 2px solid rgba(124, 58, 237, 0.4);
-	box-shadow: 0 0 24px rgba(124, 58, 237, 0.25);
+	border: 2px solid var(--accent-border, rgba(124, 58, 237, 0.4));
+	box-shadow: 0 0 24px var(--accent-shadow, rgba(124, 58, 237, 0.25));
 	border-radius: 8px;
 	overflow: hidden;
 }
