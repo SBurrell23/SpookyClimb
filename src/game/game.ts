@@ -4,6 +4,7 @@ import { createInput } from './input'
 import { LEVELS } from './levels'
 import { createPlayer, stepPlayer } from './physics'
 import { createCamera } from './camera'
+import { playJump, playLand, playDoor, startRainAmbience, setRainIntensity } from './audio'
 
 export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	const ctx = canvas.getContext('2d')!
@@ -55,6 +56,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		coyoteTimer = 0
 		respawnTimer = 0
 		renderer.triggerFadeIn(FADE_IN_DURATION)
+		startRainAmbience()
 	}
 
 	function beginLevelTransition() {
@@ -231,6 +233,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		const jumpHeld = input.state.jump
 		const coyoteAvailable = coyoteTimer > 0
 		stepPlayer(player, dt, { left: input.state.left, right: input.state.right, jumpPressed, jumpHeld, down: input.state.down, coyoteAvailable }, currPlatforms)
+		if (jumpPressed && (player.onGround || coyoteAvailable)) playJump()
 		prevJumpHeld = input.state.jump
 
 		// Update coyote timer based on grounded state
@@ -246,6 +249,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 			for (let i = 0; i < 4; i++) {
 				renderer.spawnDust(player.pos.x + player.width / 2, player.pos.y + player.height)
 			}
+			playLand()
 		}
 		wasOnGround = player.onGround
 
@@ -262,10 +266,11 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		}
 
 	// Door overlap check -> begin animated transition
-	if (isMostlyOverlappingDoor()) {
-		beginLevelTransition()
-		return
-	}
+		if (isMostlyOverlappingDoor()) {
+			playDoor()
+			beginLevelTransition()
+			return
+		}
 
 		// Death zone: push it farther down (so ghost fully off-screen before trigger)
 		const playerBottom = player.pos.y + player.height
@@ -277,6 +282,15 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		}
 
 		camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
+		// Drive rain ambience softly from progress
+		const levelTop = level.exitDoor.y
+		const spawnBottom = level.spawn.y + player.height
+		const playerBottomNow = player.pos.y + player.height
+		const totalClimbHeight = Math.max(1, spawnBottom - levelTop)
+		const playerClimbProgress = spawnBottom - playerBottomNow
+		const progress = Math.max(0, Math.min(1, playerClimbProgress / totalClimbHeight))
+		const rainScale = Math.max(0, Math.min(1, progress / 0.75))
+		setRainIntensity(0.10 + 0.90 * rainScale)
 	}
 
 	function frame(now: number) {

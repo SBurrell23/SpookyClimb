@@ -1,5 +1,6 @@
 import type { EnemyPlaceholder, GameDimensions, LevelDefinition, Player, Platform } from './types'
 import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer, drawSpookyBackground, drawDoor, updateAndDrawDust, Dust, drawVignette } from './utils/draw'
+import { playThunder } from './audio'
 
 export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensions) {
 	let time = 0
@@ -317,7 +318,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 
 			// Lightning (generation + screen flash) once progress reaches threshold
 			if (progress >= LIGHTNING_PROGRESS_THRESHOLD) {
-				if (lightningTime <= 0 && Math.random() < 0.25 * dt) {
+                if (lightningTime <= 0 && Math.random() < 0.25 * dt) {
 					lightningTime = 0.28
 					// Per-strike subtle variation
 					lightningWidth = 2.5 + Math.random() * 1.0 // 2.5..3.5 px
@@ -328,11 +329,11 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 					rumbleDuration = 0.28
 					rumbleTime = rumbleDuration
 					rumbleStrength = 2 + Math.random() * 3 // 2..5 px
-					// Generate a jagged bolt path that starts one full screen above and ends one full screen below
+                    // Generate a jagged bolt path that starts one full screen above and ends one full screen below
 					const startX = camera.x + 80 + Math.random() * (view.width - 160)
 					const yStart = camera.y - view.height // one screen above
 					const yEnd = camera.y + view.height * 2 // one screen below
-					const segs = 12 + Math.floor(Math.random() * 6)
+                    const segs = 12 + Math.floor(Math.random() * 6)
 					lightningPoints = [{ x: startX, y: yStart }]
 					let px = startX
 					let py = yStart
@@ -342,7 +343,9 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 						const step = remaining / (segs - i)
 						py += step * (0.85 + Math.random() * 0.4)
 						lightningPoints.push({ x: px, y: py })
-					}
+                    // Thunder sfx
+                    playThunder()
+                }
 				}
 				if (lightningTime > 0) {
 					lightningTime -= dt
