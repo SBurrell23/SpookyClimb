@@ -334,8 +334,14 @@ export function drawPlatforms(ctx: CanvasRenderingContext2D, platforms: Platform
 
 export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: number) {
 	ctx.save()
-	ctx.translate(pl.pos.x + pl.width / 2, pl.pos.y + pl.height)
-	ctx.scale(pl.facing, 1)
+    ctx.translate(pl.pos.x + pl.width / 2, pl.pos.y + pl.height)
+
+    // Determine horizontal lean based on velocity and facing
+    const vx = (pl as any).vel?.x as number | undefined
+    const speed = typeof vx === 'number' ? vx : 0
+    const dirSign = speed !== 0 ? Math.sign(speed) : (pl.facing || 1)
+    // Apply facing to keep sprite mirroring consistent with direction of motion
+    ctx.scale(dirSign >= 0 ? 1 : -1, 1)
 
 	const w = pl.width
 	const h = pl.height
@@ -344,7 +350,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
 	const waveCount = 4
 	const wavePhase = time * 6
 
-	// Jump stretch: scale vertically when ascending
+    // Jump stretch: scale vertically when ascending
 	let stretchY = 1
 	let squashX = 1
 	const v = (pl as any).vel?.y as number | undefined
@@ -358,7 +364,14 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
 		}
 	}
 
-	ctx.scale(squashX, stretchY)
+    // Body lean based on horizontal speed (works on ground and in-air)
+    // Clamp lean to a subtle range (about ±8 degrees). Rotate in local space,
+    // relying on the horizontal flip above so left-lean is correct when moving left.
+    const maxLeanRad = 8 * Math.PI / 180
+    const lean = Math.max(0, Math.min(1, (Math.abs(speed) / 320))) * maxLeanRad
+    ctx.rotate(lean)
+
+    ctx.scale(squashX, stretchY)
 
 	// Glow
 	ctx.save()
@@ -387,13 +400,14 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
 	ctx.fill()
 	ctx.restore()
 
-	// Face
+    // Face
 	ctx.save()
 	ctx.fillStyle = '#111827'
-	// Eyes
+    // Eyes (shift slightly toward motion direction in local space)
+    const eyeOffset = Math.max(0, Math.min(2.5, (Math.abs(speed) / 260) * 2.2))
 	ctx.beginPath()
-	ctx.arc(-7, -h + 16, 3.5, 0, Math.PI * 2)
-	ctx.arc(7, -h + 16, 3.5, 0, Math.PI * 2)
+    ctx.arc(-7 + eyeOffset, -h + 16, 3.5, 0, Math.PI * 2)
+    ctx.arc(7 + eyeOffset, -h + 16, 3.5, 0, Math.PI * 2)
 	ctx.fill()
 	// Mouth (small oval)
 	ctx.beginPath()

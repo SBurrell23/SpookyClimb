@@ -118,7 +118,8 @@ export function playLand() {
 	const t0 = now()
 	const o = osc('sine', 140)
 	const g = createGain(0)
-	env(g, t0, 0.001, 0.05, 0.0, 0.08, 0.7)
+    // Reduced peak to soften landing volume
+    env(g, t0, 0.001, 0.05, 0.0, 0.08, 0.45)
 	o.connect(g).connect(master!)
 	o.start(t0)
 	o.frequency.exponentialRampToValueAtTime(90, t0 + 0.06)
