@@ -13,8 +13,9 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	const playerHeight = 44
 
 	const maxRise = Math.floor(caps.maxJumpHeight * 0.85)
-	const maxRun = Math.floor(caps.maxAirHorizontalDistance * 0.7)
-	const minRun = Math.max(160, Math.floor(caps.maxAirHorizontalDistance * 0.3))
+	const maxRunCap = Math.floor(caps.maxAirHorizontalDistance)
+	const maxRunEff = Math.floor(maxRunCap * 0.7)
+	const minRun = Math.max(160, Math.floor(maxRunCap * 0.3))
 
 	const platforms: Platform[] = []
 	// Base ground (id 0) with open gaps on both sides (half the previous 60% -> 30%)
@@ -29,50 +30,125 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	const widthMin = 120
 	const widthMax = 160
 	// Increase horizontal range so platforms travel farther left/right
-	const moveRangeMax = Math.min(320, Math.floor(maxRun * 0.5))
+	const moveRangeMax = Math.min(320, Math.floor(maxRunEff * 0.7))
 	const speedMin = 1.0
 	const speedMax = 2.2
+	// Level-based speed scaling: L1=0.25x, L5=1.25x (linear between)
+	const speedScale = 0.25 + (Math.max(1, Math.min(5, id)) - 1) * 0.25
+	const speedMinScaled = speedMin * speedScale
+	const speedMaxScaled = speedMax * speedScale
+
+	// Anti-stacking controls
+	const minDeltaX = Math.max(180, Math.floor(maxRunEff * 0.5)) // ensure noticeable x change but within reach
+	const lanes = 4
+	const laneSpan = (width - margin * 2) / (lanes - 1)
+	let targetLane = Math.floor(rng() * lanes)
+	let laneChangeIn = 4 + Math.floor(rng() * 6) // steps until next lane switch
 
 	let pid = 1
 
 	function makeMovingPlatform(x: number, y: number): Platform {
 		const w = Math.floor(lerp(widthMin, widthMax, rng()))
-		const range = Math.floor(lerp(80, moveRangeMax, rng()))
-		const omega = lerp(speedMin, speedMax, rng())
+		const range = Math.floor(lerp(60, moveRangeMax, rng()))
+		const omega = lerp(speedMinScaled, speedMaxScaled, rng())
 		const phase = lerp(0, Math.PI * 2, rng())
 		return { id: pid++, x, y, w, h: platformThickness, type: 'platform', move: { baseX: x, range, angularSpeed: omega, phase } }
 	}
 
-	// First platform reachable from spawn with more spacing
-	const firstRun = clamp(Math.floor(lerp(minRun * 0.6, Math.min(maxRun, 300), rng())), 120, Math.min(maxRun, 300))
-	const firstRiseMin = Math.floor(maxRise * 0.4)
-	const firstRise = clamp(Math.floor(lerp(maxRise * 0.45, maxRise * 0.6, rng())), firstRiseMin, Math.floor(maxRise * 0.6))
+	function clampReachableX(prevX: number, minX: number, maxX: number, candidate: number, prevRange: number, nextRange: number) {
+		// A platform is reachable if during motion the horizontal bands overlap within player's reach
+		// Effective reachable window: [prevX - maxRunEff - nextRange, prevX + maxRunEff + nextRange]
+		const rmin = Math.max(minX, prevX - maxRunEff - nextRange)
+		const rmax = Math.min(maxX, prevX + maxRunEff + nextRange)
+		if (rmin > rmax) return Math.max(minX, Math.min(maxX, prevX))
+		return clamp(candidate, rmin, rmax)
+	}
+
+	// First platform reachable from spawn with more spacing but guaranteed reach
+	const firstRiseMin = Math.floor(maxRise * 0.35)
+	const firstRise = clamp(Math.floor(lerp(maxRise * 0.4, maxRise * 0.55, rng())), firstRiseMin, Math.floor(maxRise * 0.6))
 
 	let currentW = Math.floor(lerp(widthMin, widthMax, rng()))
-	let currentRange = Math.floor(lerp(80, moveRangeMax, rng()))
+	let currentRange = Math.floor(lerp(60, moveRangeMax, rng()))
 	let allowedMinX = margin + currentRange
 	let allowedMaxX = width - margin - currentW - currentRange
-	let currentX = clamp(spawn.x + firstRun, allowedMinX, allowedMaxX)
+	let laneCenter = margin + targetLane * laneSpan
+	let jitter = (rng() - 0.5) * Math.min(200, Math.floor(laneSpan * 0.6))
+	let candidateX = laneCenter + jitter - currentW / 2
+	let currentX = clampReachableX(spawn.x, allowedMinX, allowedMaxX, candidateX, 0, currentRange)
 	let currentY = clamp(baseGroundHeight - firstRise, 120, baseGroundHeight - 40)
-	platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMin, speedMax, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
+	platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
 	pid++
 
+	// Track last X to avoid stacking
+	let lastX = currentX
+
 	for (let i = 1; i < steps; i++) {
-		const run = clamp(Math.floor(lerp(minRun, maxRun, rng())), 180, maxRun)
-		// Enforce a larger minimum vertical rise between platforms
-		const riseMin = Math.floor(maxRise * 0.65)
-		const rise = clamp(Math.floor(lerp(maxRise * 0.7, maxRise, rng())), riseMin, maxRise)
-		const dir = rng() < 0.5 ? -1 : 1
+		// Enforce a controlled vertical rise window for consistent reach
+		const riseMin = Math.floor(maxRise * 0.55)
+		const rise = clamp(Math.floor(lerp(maxRise * 0.6, maxRise * 0.85, rng())), riseMin, Math.floor(maxRise * 0.9))
 
 		currentW = Math.floor(lerp(widthMin, widthMax, rng()))
-		currentRange = Math.floor(lerp(80, moveRangeMax, rng()))
+		currentRange = Math.floor(lerp(60, moveRangeMax, rng()))
 		allowedMinX = margin + currentRange
 		allowedMaxX = width - margin - currentW - currentRange
-		currentX = clamp(currentX + dir * run, allowedMinX, allowedMaxX)
+
+		// Lane steering
+		laneChangeIn--
+		if (laneChangeIn <= 0) {
+			targetLane = (targetLane + (rng() < 0.5 ? -1 : 1) + lanes) % lanes
+			laneChangeIn = 4 + Math.floor(rng() * 6)
+		}
+		laneCenter = margin + targetLane * laneSpan
+		jitter = (rng() - 0.5) * Math.min(180, Math.floor(laneSpan * 0.5))
+		candidateX = laneCenter + jitter - currentW / 2
+
+		// Reachable clamp and minimum delta
+		let nextX = clampReachableX(lastX, allowedMinX, allowedMaxX, candidateX, currentRange, currentRange)
+		if (Math.abs(nextX - lastX) < minDeltaX) {
+			const rmin = Math.max(allowedMinX, lastX - maxRunEff)
+			const rmax = Math.min(allowedMaxX, lastX + maxRunEff)
+			if (rmin <= rmax) {
+				const preferRight = rng() < 0.5
+				nextX = preferRight ? Math.min(rmax, lastX + minDeltaX) : Math.max(rmin, lastX - minDeltaX)
+			}
+		}
+
+		// Additional non-overlap rule: ensure platform centers are sufficiently separated
+		const lastCenter = lastX + currentW / 2 // approximate using currentW; lastW unknown until we store; use currentW as proxy
+		let nextCenter = nextX + currentW / 2
+		const minCenterDelta = Math.floor(currentW * 0.9) // ~width separation
+		if (Math.abs(nextCenter - lastCenter) < minCenterDelta) {
+			const dirSign = nextCenter >= lastCenter ? 1 : -1
+			const rmin = Math.max(allowedMinX, lastX - maxRunEff)
+			const rmax = Math.min(allowedMaxX, lastX + maxRunEff)
+			const needed = minCenterDelta - Math.abs(nextCenter - lastCenter)
+			nextX = clamp(nextX + dirSign * needed, rmin, rmax)
+			nextCenter = nextX + currentW / 2
+		}
+
+		currentX = nextX
 		currentY = clamp(currentY - rise, 120, baseGroundHeight - 40)
 
-		platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMin, speedMax, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
+		platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
 		pid++
+		lastX = currentX
+
+		// Occasionally add a small optional side ledge within reach to encourage timing
+		if (rng() < 0.22) {
+			const offsetRaw = (rng() < 0.5 ? -1 : 1) * clamp(Math.floor(lerp(140, 220, rng())), 120, 240)
+			const lw = Math.floor(lerp(80, 120, rng()))
+			const lxAllowedMin = margin + 40
+			const lxAllowedMax = width - margin - lw - 40
+			const lxCandidate = currentX + offsetRaw
+			const lxReachMin = Math.max(lxAllowedMin, currentX - maxRunEff - Math.floor(lerp(40, 90, rng())))
+			const lxReachMax = Math.min(lxAllowedMax, currentX + maxRunEff + Math.floor(lerp(40, 90, rng())))
+			const lx = clamp(lxCandidate, lxReachMin, lxReachMax)
+			const lyRise = clamp(Math.floor(lerp(40, 80, rng())), 40, Math.floor(maxRise * 0.6))
+			const ly = clamp(currentY - lyRise, 80, baseGroundHeight - 40)
+			platforms.push({ id: pid, x: lx, y: ly, w: lw, h: platformThickness, type: 'platform', move: { baseX: lx, range: Math.floor(lerp(40, 90, rng())), angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
+			pid++
+		}
 	}
 
 	// Compute topmost platform for door

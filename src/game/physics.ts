@@ -2,9 +2,10 @@ import type { Player, Platform, Rect, Vec2 } from './types'
 
 const GRAVITY = 1800 // px/s^2
 const MOVE_SPEED = 260 // px/s
-const JUMP_VELOCITY = 780 // px/s (increased for better reach)
+const JUMP_VELOCITY = 1100 // px/s (~sqrt(2) * 780) doubles jump height
 const MAX_FALL_SPEED = 1200
 const CUT_JUMP_GRAVITY_MULTIPLIER = 2.2
+const FAST_FALL_MULTIPLIER = 1.35
 
 export function createPlayer(spawn: Vec2): Player {
 	return {
@@ -36,7 +37,7 @@ export function aabbIntersect(a: Rect, b: Rect) {
 	return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 }
 
-export type PhysicsInput = { left: boolean; right: boolean; jumpPressed: boolean; jumpHeld: boolean; coyoteAvailable?: boolean }
+export type PhysicsInput = { left: boolean; right: boolean; jumpPressed: boolean; jumpHeld: boolean; down?: boolean; coyoteAvailable?: boolean }
 
 export function stepPlayer(player: Player, dt: number, input: PhysicsInput, solids: Platform[]) {
 	// Horizontal
@@ -58,6 +59,11 @@ export function stepPlayer(player: Player, dt: number, input: PhysicsInput, soli
 	// Cut jump height if jump is released during ascent
 	if (!input.jumpHeld && player.vel.y < 0) {
 		player.vel.y += GRAVITY * (CUT_JUMP_GRAVITY_MULTIPLIER - 1) * dt
+	}
+
+	// Fast-fall when holding Down and descending
+	if (input.down && player.vel.y > 0) {
+		player.vel.y += GRAVITY * (FAST_FALL_MULTIPLIER - 1) * dt
 	}
 
 	if (player.vel.y > MAX_FALL_SPEED) player.vel.y = MAX_FALL_SPEED

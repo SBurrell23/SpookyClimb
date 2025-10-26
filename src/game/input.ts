@@ -3,11 +3,12 @@ export type KeyState = {
 	right: boolean
 	jump: boolean
 	reset: boolean
+	down: boolean
 	level: 1 | 2 | 3 | 4 | 5 | null
 }
 
 export function createInput() {
-	const state: KeyState = { left: false, right: false, jump: false, reset: false, level: null }
+	const state: KeyState = { left: false, right: false, jump: false, reset: false, down: false, level: null }
 
 	function onKeyDown(e: KeyboardEvent) {
 		switch (e.key) {
@@ -21,6 +22,9 @@ export function createInput() {
 			case 'W':
 			case 'ArrowUp':
 			case ' ': state.jump = true; break
+			case 's':
+			case 'S':
+			case 'ArrowDown': state.down = true; break
 			case 'r':
 			case 'R': state.reset = true; break
 			case '1': state.level = 1; break
@@ -43,6 +47,9 @@ export function createInput() {
 			case 'W':
 			case 'ArrowUp':
 			case ' ': state.jump = false; break
+			case 's':
+			case 'S':
+			case 'ArrowDown': state.down = false; break
 			case 'r':
 			case 'R': state.reset = false; break
 		}

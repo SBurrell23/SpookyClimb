@@ -169,7 +169,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		const jumpPressed = input.state.jump && !prevJumpHeld
 		const jumpHeld = input.state.jump
 		const coyoteAvailable = coyoteTimer > 0
-		stepPlayer(player, dt, { left: input.state.left, right: input.state.right, jumpPressed, jumpHeld, coyoteAvailable }, currPlatforms)
+		stepPlayer(player, dt, { left: input.state.left, right: input.state.right, jumpPressed, jumpHeld, down: input.state.down, coyoteAvailable }, currPlatforms)
 		prevJumpHeld = input.state.jump
 
 		// Update coyote timer based on grounded state
