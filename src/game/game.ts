@@ -16,7 +16,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	const camera = createCamera(view, level.bounds)
 	const renderer = createRenderer(ctx, view)
 
-	type Mode = 'start' | 'playing' | 'end'
+	type Mode = 'start' | 'playing' | 'transition' | 'end'
 	let mode: Mode = 'start'
 
 	let last = performance.now()
@@ -29,6 +29,13 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	let respawnTimer = 0
 	const FLASH_DURATION = 0.6
 	const FADE_IN_DURATION = 0.45
+
+	// Door transition state
+	let transitionPhase: 'launch' | 'arrive' = 'launch'
+	let transitionTimer = 0
+	const LAUNCH_DURATION = 0.6
+	const ARRIVE_MIN_TIME = 0.2
+	let queuedNextLevelIndex: number | null = null
 
 	// Timing
 	const levelTimes: number[] = []
@@ -48,6 +55,22 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		coyoteTimer = 0
 		respawnTimer = 0
 		renderer.triggerFadeIn(FADE_IN_DURATION)
+	}
+
+	function beginLevelTransition() {
+		if (mode === 'transition') return
+		// Queue next level (or end)
+		queuedNextLevelIndex = currentLevelIndex >= LEVELS.length - 1 ? null : currentLevelIndex + 1
+		// Record level time now
+		levelTimes.push(levelElapsed)
+		levelElapsed = 0
+		// Enter launch phase
+		mode = 'transition'
+		transitionPhase = 'launch'
+		transitionTimer = 0
+		player.onGround = false
+		player.vel.y = -1600
+		player.vel.x = 0
 	}
 
 	function resetLevel(idx = currentLevelIndex) {
@@ -134,11 +157,49 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 			if (input.state.jump && !prevJumpHeld) startGame()
 			return
 		}
-		if (mode === 'end') {
+	if (mode === 'end') {
 			// Press space to restart
 			if (input.state.jump && !prevJumpHeld) startGame()
 			return
 		}
+	if (mode === 'transition') {
+		// Inputs disabled
+		prevJumpHeld = input.state.jump
+		if (transitionPhase === 'launch') {
+			transitionTimer += dt
+			// move upward fast, slight extra boost
+			player.pos.y += player.vel.y * dt
+			player.vel.y -= 300 * dt
+			camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
+			if (transitionTimer >= LAUNCH_DURATION) {
+				if (queuedNextLevelIndex == null) {
+					mode = 'end'
+					return
+				}
+				currentLevelIndex = queuedNextLevelIndex
+				level = LEVELS[currentLevelIndex]!
+				player = createPlayer({ x: level.spawn.x, y: level.spawn.y + 80 })
+				player.vel.y = -900
+				player.vel.x = 0
+				camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
+				renderer.triggerFadeIn(0.25)
+				transitionPhase = 'arrive'
+				transitionTimer = 0
+			}
+			return
+		}
+		// arrive phase: simulate until grounded briefly (ignore ceiling so ghost can pass up through platform)
+		const currPlatforms = computePlatforms(tCurr)
+		attachEntitiesToPlatforms(currPlatforms)
+		stepPlayer(player, dt, { left: false, right: false, jumpPressed: false, jumpHeld: false, down: false, coyoteAvailable: false, ignoreCeiling: true }, currPlatforms)
+		transitionTimer += dt
+		camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
+		if (player.onGround && transitionTimer >= ARRIVE_MIN_TIME) {
+			mode = 'playing'
+			transitionTimer = 0
+		}
+		return
+	}
 
 		levelElapsed += dt
 		// If waiting to respawn, count down and respawn when time elapses
@@ -200,10 +261,11 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 			}
 		}
 
-		// Door overlap check
-		if (isMostlyOverlappingDoor()) {
-			advanceToTargetLevel()
-		}
+	// Door overlap check -> begin animated transition
+	if (isMostlyOverlappingDoor()) {
+		beginLevelTransition()
+		return
+	}
 
 		// Death zone: push it farther down (so ghost fully off-screen before trigger)
 		const playerBottom = player.pos.y + player.height

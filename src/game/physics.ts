@@ -37,7 +37,7 @@ export function aabbIntersect(a: Rect, b: Rect) {
 	return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 }
 
-export type PhysicsInput = { left: boolean; right: boolean; jumpPressed: boolean; jumpHeld: boolean; down?: boolean; coyoteAvailable?: boolean }
+export type PhysicsInput = { left: boolean; right: boolean; jumpPressed: boolean; jumpHeld: boolean; down?: boolean; coyoteAvailable?: boolean; ignoreCeiling?: boolean }
 
 export function stepPlayer(player: Player, dt: number, input: PhysicsInput, solids: Platform[]) {
 	// Horizontal
@@ -68,17 +68,17 @@ export function stepPlayer(player: Player, dt: number, input: PhysicsInput, soli
 
 	if (player.vel.y > MAX_FALL_SPEED) player.vel.y = MAX_FALL_SPEED
 
-	// Integrate X
+    // Integrate X
 	player.pos.x += player.vel.x * dt
-	solveCollisions(player, solids, 'x')
+    solveCollisions(player, solids, 'x')
 
-	// Integrate Y
+    // Integrate Y
 	player.pos.y += player.vel.y * dt
 	player.onGround = false
-	solveCollisions(player, solids, 'y')
+    solveCollisions(player, solids, 'y', !!input.ignoreCeiling)
 }
 
-function solveCollisions(player: Player, solids: Platform[], axis: 'x' | 'y') {
+function solveCollisions(player: Player, solids: Platform[], axis: 'x' | 'y', ignoreCeiling = false) {
 	const bbox: Rect = { x: player.pos.x, y: player.pos.y, w: player.width, h: player.height }
 	for (const s of solids) {
 		if (!aabbIntersect(bbox, s)) continue
@@ -95,7 +95,7 @@ function solveCollisions(player: Player, solids: Platform[], axis: 'x' | 'y') {
 				player.pos.y = s.y - player.height
 				player.vel.y = 0
 				player.onGround = true
-			} else if (player.vel.y < 0) {
+            } else if (player.vel.y < 0 && !ignoreCeiling) {
 				player.pos.y = s.y + s.h
 				player.vel.y = 0
 			}

@@ -6,6 +6,11 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 	const dust: Dust[] = []
 	let bestProgress = 0
 	let lastLevelId: number | undefined
+	// Adjustable thresholds
+	const LIGHTNING_PROGRESS_THRESHOLD = 0.65
+	// Rain always on: start at 25% of normal, reach 100% by 75% progress
+    const RAIN_MIN_SCALE = 0.10
+	const RAIN_FULL_PROGRESS = 0.75
 	// Ambient bats
 	type Bat = { x: number; y: number; vx: number; scale: number; life: number; flapOffset: number }
 	const bats: Bat[] = []
@@ -13,6 +18,18 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 	// Lightning state
 	let lightningTime = 0
 	let lightningPoints: { x: number; y: number }[] = []
+	let lightningWidth = 3
+	let lightningAlpha = 0.95
+	let lightningShadow = 18
+	let lightningFlashAlpha = 0.22
+	// Rumble (camera shake) state
+	let rumbleTime = 0
+	let rumbleDuration = 0.3
+	let rumbleStrength = 3
+
+    // Rain state (screen-space particles)
+    const rainDrops: { x: number; y: number; len: number; vy: number; a: number; w: number }[] = []
+    let prevCamY: number | null = null
 
 	return {
 		spawnDust(x: number, y: number) {
@@ -89,7 +106,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			drawHappyGhost(ctx, view.width / 2 - 20, Math.floor(view.height * 0.62) + 100, 40, 52, time)
 			drawVignette(ctx, view.width, view.height)
 		},
-		render(level: LevelDefinition, player: Player, enemies: EnemyPlaceholder[], camera: { x: number; y: number }, dt: number, platforms: Platform[]) {
+			render(level: LevelDefinition, player: Player, enemies: EnemyPlaceholder[], camera: { x: number; y: number }, dt: number, platforms: Platform[]) {
 			time += dt
 			;(this as any)._flashTime = (this as any)._flashTime ?? 0
 			;(this as any)._flashDuration = (this as any)._flashDuration ?? 0.5
@@ -97,6 +114,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			;(this as any)._fadeInDuration = (this as any)._fadeInDuration ?? 0.4
 			if ((this as any)._flashTime > 0) (this as any)._flashTime -= dt
 			if ((this as any)._fadeInTime > 0) (this as any)._fadeInTime -= dt
+			if (rumbleTime > 0) rumbleTime -= dt
 			// Reset best and ambient when level changes
 			if (lastLevelId !== level.id) { bestProgress = 0; lastLevelId = level.id; bats.length = 0; batCooldown = 0; lightningTime = 0 }
 			// Background
@@ -138,14 +156,24 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			}
 
 			ctx.save()
+			// Apply subtle camera shake in screen space before translating to world
+			if (rumbleTime > 0) {
+				const t = Math.max(0, Math.min(1, rumbleTime / rumbleDuration))
+				const mag = rumbleStrength * (t * t)
+				const sx = (Math.random() - 0.5) * 2 * mag
+				const sy = (Math.random() - 0.5) * 2 * mag
+				const rot = (Math.random() - 0.5) * 0.004 * t
+				ctx.translate(sx, sy)
+				ctx.rotate(rot)
+			}
 			ctx.translate(-camera.x, -camera.y)
 			// Lightning bolt behind platforms (world space)
-			if (progress >= 0.75 && lightningTime > 0) {
+			if (progress >= LIGHTNING_PROGRESS_THRESHOLD && lightningTime > 0) {
 				ctx.save()
-				ctx.strokeStyle = 'rgba(208,233,255,0.95)'
-				ctx.lineWidth = 3
-				ctx.shadowColor = 'rgba(180,220,255,0.9)'
-				ctx.shadowBlur = 18
+				ctx.strokeStyle = `rgba(208,233,255,${lightningAlpha})`
+				ctx.lineWidth = lightningWidth
+				ctx.shadowColor = `rgba(180,220,255,${Math.min(0.95, Math.max(0.7, lightningAlpha))})`
+				ctx.shadowBlur = lightningShadow
 				ctx.beginPath()
 				for (let i = 0; i < lightningPoints.length; i++) {
 					const p = lightningPoints[i]!
@@ -174,6 +202,75 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.textAlign = 'left'
 			ctx.textBaseline = 'top'
 			ctx.fillText(level.title, 12, 10)
+			ctx.restore()
+
+            // Subtle rain overlay (screen-space, straight down, random)
+            // Always raining: intensity scales from 10% at 0% progress up to 100% at 75% progress
+            // Apply small camera-compensation with clamping so apparent speed stays nearly constant
+            const camDeltaY = prevCamY == null ? 0 : (camera.y - prevCamY)
+            prevCamY = camera.y
+			const progressScale = Math.max(0, Math.min(1, progress / Math.max(0.001, RAIN_FULL_PROGRESS)))
+			const intensityScale = RAIN_MIN_SCALE + (1 - RAIN_MIN_SCALE) * progressScale // 0.25..1.0
+			const intensity = Math.max(0, Math.min(0.5, 0.5 * intensityScale)) // map to 0..0.5 range used below
+			// Target drop count scales with width and intensity
+			const target = Math.floor(view.width * (0.2 + intensity * 0.6))
+            while (rainDrops.length < target) {
+                const len = 6 + Math.random() * (12 + intensity * 24)
+                // Fixed screen-space rain speed regardless of camera motion
+                const vy = 420 // px/s constant
+                rainDrops.push({
+                    x: Math.random() * view.width,
+                    y: Math.random() * view.height,
+                    len,
+                    vy,
+                    a: 0.12 + Math.random() * 0.18,
+                    w: 0.9 + Math.random() * 0.8,
+                })
+            }
+			// Trim if too many
+			if (rainDrops.length > target) rainDrops.length = target
+			// Update
+            for (let i = 0; i < rainDrops.length; i++) {
+                const d = rainDrops[i]!
+                const baseStep = d.vy * dt
+                let step = baseStep - camDeltaY
+                if (camDeltaY < 0) {
+                    // Camera moving up (player jumping) → ensure visibly faster rain
+                    const minUp = baseStep * 1.25
+                    const maxUp = baseStep * 2.5
+                    if (step < minUp) step = minUp
+                    if (step > maxUp) step = maxUp
+                } else if (camDeltaY > 0) {
+                    // Camera moving down (player falling) → never allow slowdown
+                    if (step < baseStep) step = baseStep
+                } else {
+                    // No camera movement → keep base
+                    step = baseStep
+                }
+                d.y += step
+                if (d.y - d.len > view.height + 4) {
+					// Respawn at top
+                    d.x = Math.random() * view.width
+                    d.y = -Math.random() * 40 - d.len
+                    d.vy = 420
+					d.len = 6 + Math.random() * (12 + intensity * 24)
+					d.a = 0.12 + Math.random() * 0.18
+					d.w = 0.9 + Math.random() * 0.8
+				}
+			}
+			// Draw
+			ctx.save()
+			ctx.globalCompositeOperation = 'screen'
+			ctx.strokeStyle = '#cfe7ff'
+			for (let i = 0; i < rainDrops.length; i++) {
+				const d = rainDrops[i]!
+				ctx.globalAlpha = d.a
+				ctx.lineWidth = d.w
+				ctx.beginPath()
+				ctx.moveTo(d.x, d.y)
+				ctx.lineTo(d.x, d.y - d.len)
+				ctx.stroke()
+			}
 			ctx.restore()
 
 			// Vignette on top
@@ -218,32 +315,41 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			}
 			ctx.restore()
 
-			// Lightning (above 75% progress) generation + screen flash only (bolt drawn behind platforms earlier)
-			if (progress >= 0.75) {
+			// Lightning (generation + screen flash) once progress reaches threshold
+			if (progress >= LIGHTNING_PROGRESS_THRESHOLD) {
 				if (lightningTime <= 0 && Math.random() < 0.25 * dt) {
 					lightningTime = 0.28
-					// Generate a jagged bolt path in world space
+					// Per-strike subtle variation
+					lightningWidth = 2.5 + Math.random() * 1.0 // 2.5..3.5 px
+					lightningAlpha = 0.88 + Math.random() * 0.08 // 0.88..0.96
+					lightningShadow = 14 + Math.random() * 8 // 14..22
+					lightningFlashAlpha = 0.18 + Math.random() * 0.06 // 0.18..0.24
+					// Start a brief rumble
+					rumbleDuration = 0.28
+					rumbleTime = rumbleDuration
+					rumbleStrength = 2 + Math.random() * 3 // 2..5 px
+					// Generate a jagged bolt path that starts one full screen above and ends one full screen below
 					const startX = camera.x + 80 + Math.random() * (view.width - 160)
-					const startY = camera.y - 40
-					const segs = 8 + Math.floor(Math.random() * 6)
-					lightningPoints = [{ x: startX, y: startY }]
+					const yStart = camera.y - view.height // one screen above
+					const yEnd = camera.y + view.height * 2 // one screen below
+					const segs = 12 + Math.floor(Math.random() * 6)
+					lightningPoints = [{ x: startX, y: yStart }]
 					let px = startX
-					let py = startY
+					let py = yStart
 					for (let i = 0; i < segs; i++) {
 						px += (Math.random() - 0.5) * 140
-						py += (view.height / segs) * (0.7 + Math.random() * 0.6)
+						const remaining = yEnd - py
+						const step = remaining / (segs - i)
+						py += step * (0.85 + Math.random() * 0.4)
 						lightningPoints.push({ x: px, y: py })
 					}
-					// ensure it extends below the screen bottom
-					const bottomY = camera.y + view.height + 80
-					if (py < bottomY) lightningPoints.push({ x: px + (Math.random() - 0.5) * 120, y: bottomY })
 				}
 				if (lightningTime > 0) {
 					lightningTime -= dt
 					// flash overlay only
 					const flash = Math.max(0, Math.min(1, lightningTime / 0.28))
 					ctx.save()
-					ctx.globalAlpha = 0.22 * flash
+					ctx.globalAlpha = lightningFlashAlpha * flash
 					ctx.fillStyle = 'rgba(210,230,255,1)'
 					ctx.fillRect(0, 0, view.width, view.height)
 					ctx.restore()
@@ -345,4 +451,10 @@ function formatTime(s: number) {
 	const m = Math.floor(s / 60)
 	const sec = s % 60
 	return `${m}:${sec.toFixed(2).padStart(5, '0')}`
+}
+
+// Screen-space rain overlay: diagonal streaks with subtle motion and alpha
+// deprecated overlay (replaced with particle rain)
+function drawRainOverlay(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, intensity: number) {
+    // intentionally no-op to keep symbol if referenced elsewhere
 }

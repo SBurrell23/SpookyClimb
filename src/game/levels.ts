@@ -198,9 +198,9 @@ function mulberry32(a: number) {
 }
 
 export const LEVELS: LevelDefinition[] = [
-	generateVerticalLevel(1, 1600, 9600, 1337, 35),
-	generateVerticalLevel(2, 1600, 9600, 424242, 50),
-	generateVerticalLevel(3, 1600, 9600, 9876, 85),
-	generateVerticalLevel(4, 1600, 9600, 20241, 125),
-	generateVerticalLevel(5, 1600, 9600, 55555, 166),
+	generateVerticalLevel(1, 1600, 9600, 1337, 5), //35
+	generateVerticalLevel(2, 1600, 9600, 424242, 5), //50
+	generateVerticalLevel(3, 1600, 9600, 9876, 5), //85
+	generateVerticalLevel(4, 1600, 9600, 20241, 5), //125
+	generateVerticalLevel(5, 1600, 9600, 55555, 6), //166
 ]
