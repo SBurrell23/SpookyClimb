@@ -2,9 +2,9 @@ import type { Player, Platform, Rect, Vec2 } from './types'
 
 const GRAVITY = 1800 // px/s^2
 const MOVE_SPEED = 260 // px/s
-const JUMP_VELOCITY = 1100 // px/s (~sqrt(2) * 780) doubles jump height
+const JUMP_VELOCITY = 880 // lower base jump height
 const MAX_FALL_SPEED = 1200
-const CUT_JUMP_GRAVITY_MULTIPLIER = 2.2
+const CUT_JUMP_GRAVITY_MULTIPLIER = 2.35
 const FAST_FALL_MULTIPLIER = 1.35
 
 export function createPlayer(spawn: Vec2): Player {
@@ -14,7 +14,8 @@ export function createPlayer(spawn: Vec2): Player {
 		onGround: false,
 		width: 32,
 		height: 44,
-		facing: 1,
+        facing: 1,
+        airJumpsLeft: 1,
 	}
 }
 
@@ -50,11 +51,17 @@ export function stepPlayer(player: Player, dt: number, input: PhysicsInput, soli
 	// Vertical base gravity
 	player.vel.y += GRAVITY * dt
 
-	// Jump on rising edge, with optional coyote time
-	if (input.jumpPressed && (player.onGround || input.coyoteAvailable)) {
-		player.vel.y = -JUMP_VELOCITY
-		player.onGround = false
-	}
+    // Jump on rising edge: allow onGround/coyote OR one mid-air jump
+    if (input.jumpPressed) {
+        if (player.onGround || input.coyoteAvailable) {
+            player.vel.y = -JUMP_VELOCITY
+            player.onGround = false
+            player.airJumpsLeft = 1
+        } else if ((player.airJumpsLeft ?? 0) > 0) {
+            player.vel.y = -JUMP_VELOCITY * 0.9 // lower than first jump
+            player.airJumpsLeft = (player.airJumpsLeft ?? 0) - 1
+        }
+    }
 
 	// Cut jump height if jump is released during ascent
 	if (!input.jumpHeld && player.vel.y < 0) {
@@ -75,7 +82,12 @@ export function stepPlayer(player: Player, dt: number, input: PhysicsInput, soli
     // Integrate Y
 	player.pos.y += player.vel.y * dt
 	player.onGround = false
+    const beforeGround = player.onGround
     solveCollisions(player, solids, 'y', !!input.ignoreCeiling)
+    if (!beforeGround && player.onGround) {
+        // Refill air jump when landing
+        player.airJumpsLeft = 1
+    }
 }
 
 function solveCollisions(player: Player, solids: Platform[], axis: 'x' | 'y', ignoreCeiling = false) {

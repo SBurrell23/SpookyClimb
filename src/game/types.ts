@@ -9,6 +9,7 @@ export type Player = {
 	width: number
 	height: number
 	facing: 1 | -1
+	airJumpsLeft?: number
 }
 
 export type PlatformMove = {

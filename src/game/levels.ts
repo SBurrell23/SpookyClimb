@@ -13,7 +13,9 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	const TOP_Y = 120
 	const playerHeight = 44
 
-	const maxRise = Math.floor(caps.maxJumpHeight * 0.85)
+    // Use an effective rise based on double-jump capability (approx 1.9x single jump height)
+    const effectiveDoubleRise = Math.floor(caps.maxJumpHeight * 1.9)
+    const maxRise = Math.max(60, Math.floor(effectiveDoubleRise * 0.9))
 	const maxRunCap = Math.floor(caps.maxAirHorizontalDistance)
 	const maxRunEff = Math.floor(maxRunCap * 0.7)
 	const minRun = Math.max(160, Math.floor(maxRunCap * 0.3))
@@ -66,8 +68,8 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	}
 
 	// First platform reachable from spawn with more spacing but guaranteed reach
-	const firstRiseMin = Math.floor(maxRise * 0.35)
-	const firstRise = clamp(Math.floor(lerp(maxRise * 0.4, maxRise * 0.55, rng())), firstRiseMin, Math.floor(maxRise * 0.6))
+    const firstRiseMin = Math.floor(maxRise * 0.6)
+    const firstRise = clamp(Math.floor(lerp(maxRise * 0.7, maxRise * 0.9, rng())), firstRiseMin, Math.floor(maxRise * 0.95))
 
 	let currentW = Math.floor(lerp(widthMin, widthMax, rng()))
 	let currentRange = Math.floor(lerp(60, moveRangeMax, rng()))
@@ -86,8 +88,8 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 
 	for (let i = 1; i < steps; i++) {
 		// Enforce a controlled vertical rise window for consistent reach
-		const riseMin = Math.floor(maxRise * 0.55)
-		const rise = clamp(Math.floor(lerp(maxRise * 0.6, maxRise * 0.85, rng())), riseMin, Math.floor(maxRise * 0.9))
+        const riseMin = Math.floor(maxRise * 0.8)
+        const rise = clamp(Math.floor(lerp(maxRise * 0.9, maxRise * 1.0, rng())), riseMin, Math.floor(maxRise * 1.0))
 
 		currentW = Math.floor(lerp(widthMin, widthMax, rng()))
 		currentRange = Math.floor(lerp(60, moveRangeMax, rng()))
@@ -153,7 +155,7 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 			const lxReachMin = Math.max(lxAllowedMin, currentX - maxRunEff - Math.floor(lerp(40, 90, rng())))
 			const lxReachMax = Math.min(lxAllowedMax, currentX + maxRunEff + Math.floor(lerp(40, 90, rng())))
 			const lx = clamp(lxCandidate, lxReachMin, lxReachMax)
-			const lyRise = clamp(Math.floor(lerp(40, 80, rng())), 40, Math.floor(maxRise * 0.6))
+            const lyRise = clamp(Math.floor(lerp(100, 160, rng())), 100, Math.floor(maxRise * 0.85))
 			const ly = clamp(currentY - lyRise, TOP_Y + 40, baseGroundHeight - 40)
 			platforms.push({ id: pid, x: lx, y: ly, w: lw, h: platformThickness, type: 'platform', move: { baseX: lx, range: Math.floor(lerp(40, 90, rng())), angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
 			pid++
@@ -198,9 +200,9 @@ function mulberry32(a: number) {
 }
 
 export const LEVELS: LevelDefinition[] = [
-	generateVerticalLevel(1, 1600, 9600, 1337, 5), //35
-	generateVerticalLevel(2, 1600, 9600, 424242, 5), //50
-	generateVerticalLevel(3, 1600, 9600, 9876, 5), //85
-	generateVerticalLevel(4, 1600, 9600, 20241, 5), //125
-	generateVerticalLevel(5, 1600, 9600, 55555, 6), //166
+	generateVerticalLevel(1, 1600, 9600, 1337, 35), //35
+	generateVerticalLevel(2, 1600, 9600, 424242, 50), //50
+	generateVerticalLevel(3, 1600, 9600, 9876, 85), //85
+	generateVerticalLevel(4, 1600, 9600, 20241, 125), //125
+	generateVerticalLevel(5, 1600, 9600, 55555, 166), //166
 ]
