@@ -1,12 +1,13 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import path from 'node:path'
 
 export default defineConfig({
   plugins: [vue()],
+  // Ensure correct asset paths when deployed to GitHub Pages under /SpookyClimb/
+  base: '/SpookyClimb/',
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': '/src',
     },
   },
 })
