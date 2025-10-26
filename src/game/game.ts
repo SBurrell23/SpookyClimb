@@ -4,7 +4,7 @@ import { createInput } from './input'
 import { LEVELS } from './levels'
 import { createPlayer, stepPlayer } from './physics'
 import { createCamera } from './camera'
-import { playJump, playLand, playDoor, startRainAmbience, setRainIntensity } from './audio'
+import { playJump, playLand, playDoor, startRainAmbience, setRainIntensity, playDeath } from './audio'
 
 export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	const ctx = canvas.getContext('2d')!
@@ -44,6 +44,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 
 	function startGame() {
 		mode = 'playing'
+		// Stop menu music if any via renderer side; ensure gameplay is music-free
 		currentLevelIndex = 0
 		level = LEVELS[currentLevelIndex]!
 		player = createPlayer(level.spawn)
@@ -277,6 +278,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		const deathY = camera.pos.y + view.height + 120
 		if (playerBottom > deathY) {
 			renderer.triggerFlash(FLASH_DURATION)
+			playDeath()
 			respawnTimer = FLASH_DURATION
 			return
 		}

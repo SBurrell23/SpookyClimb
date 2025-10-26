@@ -1,6 +1,6 @@
 import type { EnemyPlaceholder, GameDimensions, LevelDefinition, Player, Platform } from './types'
 import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer, drawSpookyBackground, drawDoor, updateAndDrawDust, Dust, drawVignette } from './utils/draw'
-import { playThunder } from './audio'
+import { playThunder, stopMenuMusic, stopRainAmbience } from './audio'
 
 export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensions) {
 	let time = 0
@@ -53,7 +53,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			;(this as any)._fadeInDuration = durationSec
 			;(this as any)._fadeInTime = durationSec
 		},
-		renderStartScreen(title = 'Spooky Climb', subtitle = 'Press Space to Play', palette = { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }) {
+			renderStartScreen(title = 'Spooky Climb', subtitle = 'Press Space to Play', palette = { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }) {
 			time += 1 / 60
 			// Set page background/accent to match start palette
 			document.body.style.setProperty('--bg1', palette.sky)
@@ -81,8 +81,9 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			drawHappyGhost(ctx, view.width / 2 - 16, view.height * 0.55, 32, 44, time, false)
 			drawVignette(ctx, view.width, view.height)
 		},
-		renderEndScreen(levelTimes: number[], total: number, levelNames: string[]) {
-			time += 1 / 60
+			renderEndScreen(levelTimes: number[], total: number, levelNames: string[]) {
+            time += 1 / 60
+				stopRainAmbience()
 			drawSpookyBackground(ctx, view.width, view.height, '#0b0b17')
 			drawFog(ctx, view.width, view.height, time, 'rgba(59,130,246,0.06)')
 			ctx.save()
@@ -118,7 +119,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			if (rumbleTime > 0) rumbleTime -= dt
 			// Reset best and ambient when level changes
 			if (lastLevelId !== level.id) { bestProgress = 0; lastLevelId = level.id; bats.length = 0; batCooldown = 0; lightningTime = 0 }
-			// Background
+            // Background
 			document.body.style.setProperty('--bg1', level.palette.sky)
 			document.body.style.setProperty('--bg2', 'rgba(0,0,0,0.9)')
 			document.body.style.setProperty('--bg3', 'rgba(0,0,0,1)')
@@ -167,7 +168,9 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.translate(sx, sy)
 				ctx.rotate(rot)
 			}
-			ctx.translate(-camera.x, -camera.y)
+            ctx.translate(-camera.x, -camera.y)
+            // Stop menu music during gameplay frames
+            stopMenuMusic()
 			// Lightning bolt behind platforms (world space)
 			if (progress >= LIGHTNING_PROGRESS_THRESHOLD && lightningTime > 0) {
 				ctx.save()
