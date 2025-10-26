@@ -10,6 +10,7 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	const caps = getMovementCaps()
 	const platformThickness = 24
 	const baseGroundHeight = height - 200
+	const TOP_Y = 120
 	const playerHeight = 44
 
 	const maxRise = Math.floor(caps.maxJumpHeight * 0.85)
@@ -76,7 +77,7 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 	let jitter = (rng() - 0.5) * Math.min(200, Math.floor(laneSpan * 0.6))
 	let candidateX = laneCenter + jitter - currentW / 2
 	let currentX = clampReachableX(spawn.x, allowedMinX, allowedMaxX, candidateX, 0, currentRange)
-	let currentY = clamp(baseGroundHeight - firstRise, 120, baseGroundHeight - 40)
+	let currentY = clamp(baseGroundHeight - firstRise, TOP_Y + 8, baseGroundHeight - 40)
 	platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
 	pid++
 
@@ -128,14 +129,22 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 		}
 
 		currentX = nextX
-		currentY = clamp(currentY - rise, 120, baseGroundHeight - 40)
+		const nextYRaw = currentY - rise
+		if (nextYRaw <= TOP_Y + 8) {
+			currentY = TOP_Y + 8
+			platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
+			pid++
+			lastX = currentX
+			break // stop generating once we hit the top to avoid clustering
+		}
+		currentY = clamp(nextYRaw, TOP_Y + 8, baseGroundHeight - 40)
 
 		platforms.push({ id: pid, x: currentX, y: currentY, w: currentW, h: platformThickness, type: 'platform', move: { baseX: currentX, range: currentRange, angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
 		pid++
 		lastX = currentX
 
 		// Occasionally add a small optional side ledge within reach to encourage timing
-		if (rng() < 0.22) {
+		if (currentY > TOP_Y + 220 && rng() < 0.22) {
 			const offsetRaw = (rng() < 0.5 ? -1 : 1) * clamp(Math.floor(lerp(140, 220, rng())), 120, 240)
 			const lw = Math.floor(lerp(80, 120, rng()))
 			const lxAllowedMin = margin + 40
@@ -145,7 +154,7 @@ function generateVerticalLevel(id: number, width: number, height: number, seed: 
 			const lxReachMax = Math.min(lxAllowedMax, currentX + maxRunEff + Math.floor(lerp(40, 90, rng())))
 			const lx = clamp(lxCandidate, lxReachMin, lxReachMax)
 			const lyRise = clamp(Math.floor(lerp(40, 80, rng())), 40, Math.floor(maxRise * 0.6))
-			const ly = clamp(currentY - lyRise, 80, baseGroundHeight - 40)
+			const ly = clamp(currentY - lyRise, TOP_Y + 40, baseGroundHeight - 40)
 			platforms.push({ id: pid, x: lx, y: ly, w: lw, h: platformThickness, type: 'platform', move: { baseX: lx, range: Math.floor(lerp(40, 90, rng())), angularSpeed: lerp(speedMinScaled, speedMaxScaled, rng()), phase: lerp(0, Math.PI * 2, rng()) } })
 			pid++
 		}
