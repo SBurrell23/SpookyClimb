@@ -1,5 +1,5 @@
 import type { EnemyPlaceholder, GameDimensions, LevelDefinition, Player, Platform } from './types'
-import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer, drawSpookyBackground, drawDoor, updateAndDrawDust, Dust, drawVignette } from './utils/draw'
+import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer, drawSpookyBackground, drawDoor, updateAndDrawDust, Dust, drawVignette, drawPlatformGrassOverlay } from './utils/draw'
 import { LEVELS } from './levels'
 import { playThunder, stopMenuMusic, stopRainAmbience, startRainAmbience, setRainIntensity } from './audio'
 
@@ -191,19 +191,20 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.stroke()
 				ctx.restore()
 			}
-			drawPlatforms(ctx, platforms, level.palette.ground, level.visualSeed ?? 0)
+            drawPlatforms(ctx, platforms, level.palette.ground, level.visualSeed ?? 0)
 			// Midground fog in world-space but between platforms and player/items
 			drawMidgroundFog(ctx, view.width, view.height, time, level.palette.fog, 0.06, 0.03, camera.x, camera.y)
-			// Bats in front of fog but behind player/items
+            // Bats in front of fog but behind player/items
 			for (const b of bats) drawBat(ctx, b.x, b.y, b.scale, time + b.flapOffset)
 			// Door
 			drawDoor(ctx, level.exitDoor.x, level.exitDoor.y, level.exitDoor.w, level.exitDoor.h)
 			// No collectibles
-			drawPlayer(ctx, player, time)
+            // Render player behind the grass overlay; draw player now, grass later
+            drawPlayer(ctx, player, time)
 			updateAndDrawDust(ctx, dust, dt)
 			ctx.restore()
 
-			// Level title top-left
+            // Level title top-left
 			ctx.save()
 			ctx.fillStyle = 'rgba(255,255,255,0.8)'
 			ctx.font = '16px ui-sans-serif, system-ui, -apple-system, Segoe UI'
@@ -211,6 +212,12 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.textBaseline = 'top'
 			ctx.fillText(level.title, 12, 10)
 			ctx.restore()
+
+            // Grass overlay on top of player/items for depth
+            ctx.save()
+            ctx.translate(-camera.x, -camera.y)
+            drawPlatformGrassOverlay(ctx, platforms, level.palette.ground, level.visualSeed ?? 0)
+            ctx.restore()
 
             // Subtle rain overlay (screen-space, straight down, random)
             // Always raining: intensity scales from 10% at 0% progress up to 100% at 75% progress
