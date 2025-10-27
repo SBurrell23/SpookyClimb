@@ -409,13 +409,15 @@ export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platform
 			return prevY
 		}
 		const grassRand = seededRand(((seed ?? 4321) ^ (p.id * 2654435761)) >>> 0)
-		const tuftCount = Math.max(4, Math.floor(p.w / 28) + Math.floor(grassRand() * 6)) * 5
 		ctx.lineCap = 'round'
-		for (let i = 0; i < tuftCount; i++) {
-			const xLocal = 4 + grassRand() * Math.max(1, p.w - 8)
+		// Draw small blades along the entire lip with varied height, color, and angle
+		for (let xLocal = 2; xLocal < p.w - 2; xLocal += 1) {
 			const baseYLocal = sampleTopY(xLocal)
 			const baseX = p.x + xLocal
 			const baseY = p.y + baseYLocal
+			// Occasionally leave a tiny gap
+			if (grassRand() < 0.08) continue
+			// Choose color per blade (dark green → olive → brown-green)
 			const palette = [
 				{ r: 9, g: 79, b: 49, a: 0.9 },
 				{ r: 12, g: 74, b: 50, a: 0.9 },
@@ -427,16 +429,16 @@ export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platform
 			]
 			const c = palette[Math.floor(grassRand() * palette.length)]!
 			ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${c.a})`
-			ctx.lineWidth = 1.2 + grassRand() * 0.7
-			const blades = 2 + Math.floor(grassRand() * 2)
+			ctx.lineWidth = 0.9 + grassRand() * 0.9
+			const blades = 1 + Math.floor(grassRand() * 2) // 1-2 blades at this x
 			for (let b = 0; b < blades; b++) {
-				const h = 8 + grassRand() * 14
-				const offset = (b - (blades - 1) / 2) * (1.5 + grassRand() * 1.0)
-				const lean = (grassRand() - 0.5) * 4
+				const h = 4 + grassRand() * 18
+				const offset = (b === 0 ? 0 : (grassRand() - 0.5) * 1.2)
+				const lean = (grassRand() - 0.5) * 6
 				ctx.beginPath()
 				ctx.moveTo(baseX + offset, baseY - 1)
 				ctx.bezierCurveTo(
-					baseX + offset + 0.3, baseY - h * 0.45,
+					baseX + offset + 0.3, baseY - h * 0.4,
 					baseX + offset + lean, baseY - h * 0.8,
 					baseX + offset + lean, baseY - h
 				)
