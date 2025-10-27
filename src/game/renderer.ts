@@ -1,5 +1,6 @@
 import type { EnemyPlaceholder, GameDimensions, LevelDefinition, Player, Platform } from './types'
 import { drawCollectibles, drawFog, drawMidgroundFog, drawPlatforms, drawPlayer, drawSpookyBackground, drawDoor, updateAndDrawDust, Dust, drawVignette } from './utils/draw'
+import { LEVELS } from './levels'
 import { playThunder, stopMenuMusic, stopRainAmbience, startRainAmbience, setRainIntensity } from './audio'
 
 export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensions) {
@@ -320,6 +321,114 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.fillRect(barX + 2, barY + 2, barW - 4, 8)
 				ctx.restore()
 			}
+			ctx.restore()
+
+			// Bottom-left level tally: five tiny tombstones with current glowing and completed filled
+			ctx.save()
+			const totalLevels = LEVELS.length
+			const currentIndex = Math.max(0, Math.min(totalLevels - 1, (level.id ?? 1) - 1))
+			const miniW = 16
+			const miniH = 20
+            const gap = 8
+			const baseX = 12
+			const baseY = view.height - 12
+			for (let i = 0; i < totalLevels; i++) {
+				const x = baseX + i * (miniW + gap)
+				const y = baseY
+				ctx.save()
+				// Ground shadow ellipse
+				ctx.globalAlpha = 0.25
+				ctx.fillStyle = '#000000'
+				ctx.beginPath()
+				ctx.ellipse(x + miniW / 2, y, miniW * 0.6, 5, 0, 0, Math.PI * 2)
+				ctx.fill()
+				ctx.globalAlpha = 1
+				// Body
+				const topY = y - miniH
+				const grad = ctx.createLinearGradient(0, topY, 0, y)
+				const isPast = i < currentIndex
+				const isCurrent = i === currentIndex
+            const isFuture = i > currentIndex
+				if (isPast) { grad.addColorStop(0, '#6b7280'); grad.addColorStop(1, '#374151') }
+				else { grad.addColorStop(0, '#4b5563'); grad.addColorStop(1, '#1f2937') }
+				ctx.fillStyle = grad
+				// Fade future levels
+				ctx.globalAlpha = isFuture ? 0.35 : 1
+				ctx.beginPath()
+				ctx.moveTo(x, y)
+				ctx.lineTo(x, topY + miniH * 0.3)
+				ctx.arc(x + miniW / 2, topY + miniH * 0.3, miniW / 2, Math.PI, 0)
+				ctx.lineTo(x + miniW, y)
+				ctx.closePath()
+				ctx.fill()
+				ctx.globalAlpha = 1
+				// Palette tint per-level (multiply with ground color)
+				ctx.save()
+				ctx.globalCompositeOperation = 'multiply'
+				ctx.globalAlpha = isCurrent ? 0.6 : (isFuture ? 0.25 : 0.45)
+				ctx.fillStyle = LEVELS[i]?.palette?.ground ?? '#1f2937'
+				ctx.beginPath()
+				ctx.moveTo(x, y)
+				ctx.lineTo(x, topY + miniH * 0.3)
+				ctx.arc(x + miniW / 2, topY + miniH * 0.3, miniW / 2, Math.PI, 0)
+				ctx.lineTo(x + miniW, y)
+				ctx.closePath()
+				ctx.fill()
+				ctx.restore()
+				// Current level: soft glow only (no outline)
+				if (isCurrent) {
+					ctx.save()
+					const pulse = (Math.sin(time * 4) + 1) * 0.5
+					ctx.globalCompositeOperation = 'screen'
+					ctx.globalAlpha = 0.22 + 0.18 * pulse
+					ctx.shadowColor = 'rgba(236,253,245,0.95)'
+					ctx.shadowBlur = 14 + 10 * pulse
+					ctx.fillStyle = 'rgba(236,253,245,0.08)'
+					ctx.beginPath()
+					ctx.moveTo(x, y)
+					ctx.lineTo(x, topY + miniH * 0.3)
+					ctx.arc(x + miniW / 2, topY + miniH * 0.3, miniW / 2, Math.PI, 0)
+					ctx.lineTo(x + miniW, y)
+					ctx.closePath()
+					ctx.fill()
+					ctx.restore()
+				} else if (isPast) {
+					// Completed level: green checkmark, no box outline
+					ctx.save()
+					// Clip to tombstone shape so the check stays inside
+					ctx.beginPath()
+					ctx.moveTo(x, y)
+					ctx.lineTo(x, topY + miniH * 0.3)
+					ctx.arc(x + miniW / 2, topY + miniH * 0.3, miniW / 2, Math.PI, 0)
+					ctx.lineTo(x + miniW, y)
+					ctx.closePath()
+					ctx.clip()
+					ctx.globalCompositeOperation = 'screen'
+					ctx.globalAlpha = 0.9
+					ctx.strokeStyle = 'rgba(34,197,94,0.95)' // same family as progress bar green
+					ctx.lineWidth = 2.2
+					ctx.lineCap = 'round'
+					// Checkmark path
+					const cx0 = x + 4, cy0 = y - 11.5
+					const cx1 = x + 8, cy1 = y - 7.5
+					const cx2 = x + miniW - 4, cy2 = topY + miniH * 0.45 - 3.5
+					ctx.beginPath()
+					ctx.moveTo(cx0, cy0)
+					ctx.lineTo(cx1, cy1)
+					ctx.lineTo(cx2, cy2)
+					ctx.stroke()
+					ctx.restore()
+				} else {
+					// Future level: no outline
+				}
+				ctx.restore()
+			}
+			// Fraction text (engraving style)
+			ctx.fillStyle = 'rgba(236,244,255,0.85)'
+			ctx.font = '12px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+			ctx.textAlign = 'left'
+			ctx.textBaseline = 'bottom'
+			ctx.fillText(`${currentIndex + 1}/${totalLevels}`, baseX + totalLevels * (miniW + gap) + 4, baseY)
 			ctx.restore()
 
 			// Lightning (generation + screen flash) once progress reaches threshold
