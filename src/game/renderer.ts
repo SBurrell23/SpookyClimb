@@ -64,22 +64,27 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			document.body.style.setProperty('--accent-shadow', palette.fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
 			drawSpookyBackground(ctx, view.width, view.height, palette.sky)
 			drawFog(ctx, view.width, view.height, time, palette.fog)
-			// Title
+			// Title (spooky typography, centered vertically; no ghost)
 			ctx.save()
 			ctx.fillStyle = '#f8fafc'
 			ctx.textAlign = 'center'
 			ctx.textBaseline = 'middle'
-			ctx.shadowColor = 'rgba(168,85,247,0.4)'
-			ctx.shadowBlur = 18
-			ctx.font = '700 42px ui-sans-serif, system-ui, -apple-system, Segoe UI'
-			ctx.fillText(title, view.width / 2, view.height * 0.35)
+			ctx.shadowColor = 'rgba(168,85,247,0.6)'
+			ctx.shadowBlur = 22
+			ctx.font = '400 88px "Creepster", ui-serif, Georgia, Times New Roman'
+			const titleY = Math.floor(view.height * 0.46)
+			ctx.fillText(title.toUpperCase(), view.width / 2, titleY)
+			// Thin outline to lighten visual weight
+			ctx.strokeStyle = 'rgba(11,11,23,0.9)'
+			ctx.lineWidth = 1.5
+			ctx.strokeText(title.toUpperCase(), view.width / 2, titleY)
 			ctx.shadowBlur = 0
-			ctx.globalAlpha = 0.85
-			ctx.font = '20px ui-sans-serif, system-ui, -apple-system, Segoe UI'
-			ctx.fillText(subtitle, view.width / 2, view.height * 0.35 + 42)
+			// Pulsing prompt
+			const pulse = (Math.sin(time * 3) + 1) * 0.5
+			ctx.globalAlpha = 0.55 + 0.4 * pulse
+			ctx.font = '600 22px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+			ctx.fillText('Press Space to Climb', view.width / 2, titleY + 88)
 			ctx.restore()
-			// Little neutral ghost below
-			drawHappyGhost(ctx, view.width / 2 - 16, view.height * 0.55, 32, 44, time, false)
 			drawVignette(ctx, view.width, view.height)
 			// Soft rain ambience on start screen
 			startRainAmbience()
@@ -130,8 +135,8 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			const fog = level.palette.fog
 			document.body.style.setProperty('--accent-border', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.45)'))
 			document.body.style.setProperty('--accent-shadow', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
-			drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0)
-			drawFog(ctx, view.width, view.height, time, level.palette.fog)
+            drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0)
+            drawFog(ctx, view.width, view.height, time, level.palette.fog)
 
 			// Calculate progress (0..1)
 			const levelTop = level.exitDoor.y
@@ -175,7 +180,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
             ctx.translate(-camera.x, -camera.y)
             // Stop menu music during gameplay frames
             stopMenuMusic()
-			// Lightning bolt behind platforms (world space)
+            // Lightning bolt behind platforms (world space)
 			if (progress >= LIGHTNING_PROGRESS_THRESHOLD && lightningTime > 0) {
 				ctx.save()
 				ctx.strokeStyle = `rgba(208,233,255,${lightningAlpha})`
@@ -191,14 +196,15 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.stroke()
 				ctx.restore()
 			}
+            // Render door behind platforms for depth
+            drawDoor(ctx, level.exitDoor.x, level.exitDoor.y, level.exitDoor.w, level.exitDoor.h)
+            // Platforms on top of door
             drawPlatforms(ctx, platforms, level.palette.ground, level.visualSeed ?? 0)
 			// Midground fog in world-space but between platforms and player/items
 			drawMidgroundFog(ctx, view.width, view.height, time, level.palette.fog, 0.06, 0.03, camera.x, camera.y)
             // Bats in front of fog but behind player/items
 			for (const b of bats) drawBat(ctx, b.x, b.y, b.scale, time + b.flapOffset)
-			// Door
-			drawDoor(ctx, level.exitDoor.x, level.exitDoor.y, level.exitDoor.w, level.exitDoor.h)
-			// No collectibles
+            // No collectibles
             // Render player behind the grass overlay; draw player now, grass later
             drawPlayer(ctx, player, time)
 			updateAndDrawDust(ctx, dust, dt)
@@ -216,7 +222,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
             // Grass overlay on top of player/items for depth
             ctx.save()
             ctx.translate(-camera.x, -camera.y)
-            drawPlatformGrassOverlay(ctx, platforms, level.palette.ground, level.visualSeed ?? 0)
+            drawPlatformGrassOverlay(ctx, platforms, level.palette.ground, level.visualSeed ?? 0, player, time)
             ctx.restore()
 
             // Subtle rain overlay (screen-space, straight down, random)
@@ -430,12 +436,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				}
 				ctx.restore()
 			}
-			// Fraction text (engraving style)
-			ctx.fillStyle = 'rgba(236,244,255,0.85)'
-			ctx.font = '12px ui-sans-serif, system-ui, -apple-system, Segoe UI'
-			ctx.textAlign = 'left'
-			ctx.textBaseline = 'bottom'
-			ctx.fillText(`${currentIndex + 1}/${totalLevels}`, baseX + totalLevels * (miniW + gap) + 4, baseY)
+			// No numeric fraction label; markers are sufficient
 			ctx.restore()
 
 			// Lightning (generation + screen flash) once progress reaches threshold

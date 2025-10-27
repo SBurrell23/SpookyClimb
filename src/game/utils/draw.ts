@@ -387,7 +387,7 @@ export function drawPlatforms(ctx: CanvasRenderingContext2D, platforms: Platform
 }
 
 // Draw grass tufts as a separate overlay so characters/doors render behind it
-export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platforms: Platform[], groundColor: string, seed?: number) {
+export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platforms: Platform[], groundColor: string, seed: number | undefined, player: Player, time: number) {
 	ctx.save()
 	for (const p of platforms) {
 		const key = `${p.id}:${groundColor}:${seed ?? 0}:${p.w}x${p.h}`
@@ -410,8 +410,8 @@ export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platform
 		}
 		const grassRand = seededRand(((seed ?? 4321) ^ (p.id * 2654435761)) >>> 0)
 		ctx.lineCap = 'round'
-		// Draw small blades along the entire lip with varied height, color, and angle
-		for (let xLocal = 2; xLocal < p.w - 2; xLocal += 1) {
+        // Draw blades at every other pixel to keep density even but thinner
+        for (let xLocal = 3; xLocal < p.w - 3; xLocal += 3) {
 			const baseYLocal = sampleTopY(xLocal)
 			const baseX = p.x + xLocal
 			const baseY = p.y + baseYLocal
@@ -430,11 +430,28 @@ export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platform
 			const c = palette[Math.floor(grassRand() * palette.length)]!
 			ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${c.a})`
 			ctx.lineWidth = 0.9 + grassRand() * 0.9
-			const blades = 1 + Math.floor(grassRand() * 2) // 1-2 blades at this x
+            const blades = 1 + Math.floor(grassRand() * 2) // 1-2 blades at this x
 			for (let b = 0; b < blades; b++) {
-				const h = 4 + grassRand() * 18
-				const offset = (b === 0 ? 0 : (grassRand() - 0.5) * 1.2)
-				const lean = (grassRand() - 0.5) * 6
+                const h = 4 + grassRand() * 18
+                const offset = (b === 0 ? 0 : (grassRand() - 0.5) * 1.2)
+                // Base random lean
+                let lean = (grassRand() - 0.5) * 6
+                // Player influence: sway nearby blades in movement direction
+                const playerCenterX = player.pos.x + player.width / 2
+                const playerBottomY = player.pos.y + player.height
+                const dx = (baseX + offset) - playerCenterX
+                const dy = (baseY) - playerBottomY
+                const horizRadius = 96
+                const vertRadius = 28
+                const dxNorm = Math.max(0, 1 - Math.abs(dx) / horizRadius)
+                const dyNorm = Math.max(0, 1 - Math.abs(dy) / vertRadius)
+                const speed = Math.abs((player as any).vel?.x ?? 0)
+                const speedFactor = Math.max(0, Math.min(1, speed / 260))
+                const dir = ((player as any).vel?.x ?? 0) >= 0 ? 1 : -1
+                const influence = dxNorm * dyNorm * speedFactor
+                const maxSway = 6
+                const pulse = Math.sin(time * 8 + dx * 0.05) * 0.6
+                lean += dir * (influence * maxSway + pulse * influence)
 				ctx.beginPath()
 				ctx.moveTo(baseX + offset, baseY - 1)
 				ctx.bezierCurveTo(
@@ -592,27 +609,23 @@ export function drawDoor(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 	// Slightly reduce tombstone height
 	const effH = h * 0.85
 	const effY = y + (h - effH)
+	// Visual-only offset to sit lower without changing interactions
+	const visOffsetY = 8
+	const y0 = effY + visOffsetY
 
-	// Ground shadow
-	ctx.save()
-	ctx.globalAlpha = 0.25
-	ctx.fillStyle = '#000000'
-	ctx.beginPath()
-	ctx.ellipse(x + w / 2, effY + effH + 6, w * 0.6, 8, 0, 0, Math.PI * 2)
-	ctx.fill()
-	ctx.restore()
+	// Remove ground shadow for cleaner look
 
 	// Tombstone body (rounded top), darker stone gradient
-	const bodyTop = effY + effH * 0.15
-	const stoneGrad = ctx.createLinearGradient(0, effY, 0, effY + effH)
+	const bodyTop = y0 + effH * 0.15
+	const stoneGrad = ctx.createLinearGradient(0, y0, 0, y0 + effH)
 	stoneGrad.addColorStop(0, '#4b5563')
 	stoneGrad.addColorStop(1, '#1f2937')
 	ctx.fillStyle = stoneGrad
 	ctx.beginPath()
-	ctx.moveTo(x, effY + effH)
+	ctx.moveTo(x, y0 + effH)
 	ctx.lineTo(x, bodyTop)
 	ctx.arc(x + w / 2, bodyTop, w / 2, Math.PI, 0)
-	ctx.lineTo(x + w, effY + effH)
+	ctx.lineTo(x + w, y0 + effH)
 	ctx.closePath()
 	ctx.fill()
 
@@ -622,10 +635,10 @@ export function drawDoor(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 	ctx.strokeStyle = '#e5e7eb'
 	ctx.lineWidth = 1.5
 	ctx.beginPath()
-	ctx.moveTo(x + 3, effY + effH - 3)
+	ctx.moveTo(x + 3, y0 + effH - 3)
 	ctx.lineTo(x + 3, bodyTop + 2)
 	ctx.arc(x + w / 2, bodyTop + 2, (w / 2) - 3, Math.PI, 0)
-	ctx.lineTo(x + w - 3, effY + effH - 3)
+	ctx.lineTo(x + w - 3, y0 + effH - 3)
 	ctx.stroke()
 	ctx.restore()
 
@@ -636,12 +649,12 @@ export function drawDoor(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 	ctx.font = `${Math.floor(effH * 0.22)}px ui-sans-serif, system-ui, -apple-system, Segoe UI`
 	ctx.textAlign = 'center'
 	ctx.textBaseline = 'middle'
-	ctx.fillText('RIP', x + w / 2, effY + effH * 0.55)
+	ctx.fillText('RIP', x + w / 2, y0 + effH * 0.55)
 	ctx.restore()
 
-	// Base plinth (darker)
-	ctx.fillStyle = '#111827'
-	ctx.fillRect(x - 6, effY + effH - 8, w + 12, 10)
+	// Base plinth lighter gray (no heavy shadow)
+	ctx.fillStyle = '#3b4250'
+	ctx.fillRect(x - 6, y0 + effH - 8, w + 12, 10)
 	ctx.restore()
 }
 
