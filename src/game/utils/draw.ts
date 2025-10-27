@@ -143,7 +143,7 @@ export function drawPlatforms(ctx: CanvasRenderingContext2D, platforms: Platform
 			buf.width = Math.max(1, Math.ceil(p.w))
 			buf.height = Math.max(1, Math.ceil(p.h))
 			const g = buf.getContext('2d')!
-			const rand = seededRand(((seed ?? 1234) ^ (p.id * 2654435761)) >>> 0)
+		const rand = seededRand(((seed ?? 1234) ^ (p.id * 2654435761)) >>> 0)
 			// Base gradient body
 			const bodyGrad = g.createLinearGradient(0, 0, 0, p.h)
 			bodyGrad.addColorStop(0, '#434b57')
@@ -172,18 +172,18 @@ export function drawPlatforms(ctx: CanvasRenderingContext2D, platforms: Platform
 			g.closePath()
 			g.fill()
 			// Side bites
-			const sideBites = 6 + Math.floor(rand() * 6)
-			for (let s = 0; s < sideBites; s++) {
-				const left = rand() < 0.5
+		const sideBites = 6 + Math.floor(rand() * 6)
+		for (let s = 0; s < sideBites; s++) {
+			const left = rand() < 0.5
 				const by = 3 + rand() * Math.max(6, p.h - 6)
 				const bw = 3 + rand() * 9
 				const bh = 6 + rand() * 16
 				g.beginPath()
-				if (left) {
+			if (left) {
 					g.moveTo(0, by)
 					g.lineTo(bw, by + bh * 0.45)
 					g.lineTo(0, by + bh)
-				} else {
+			} else {
 					g.moveTo(p.w, by)
 					g.lineTo(p.w - bw, by + bh * 0.45)
 					g.lineTo(p.w, by + bh)
@@ -451,7 +451,7 @@ export function drawPlatformGrassOverlay(ctx: CanvasRenderingContext2D, platform
 
 export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: number) {
 	ctx.save()
-    ctx.translate(pl.pos.x + pl.width / 2, pl.pos.y + pl.height)
+	ctx.translate(pl.pos.x + pl.width / 2, pl.pos.y + pl.height)
 
     // Determine horizontal lean based on velocity and facing
     const vx = (pl as any).vel?.x as number | undefined
@@ -464,10 +464,11 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
 	const h = pl.height
 	const headRadius = w * 0.5
 	const waveAmp = 5
+	const tailOffset = 6 // render-only extension to make the bottom hang lower
 	const waveCount = 4
 	const wavePhase = time * 6
 
-    // Jump stretch: scale vertically when ascending
+	// Jump stretch: scale vertically when ascending
 	let stretchY = 1
 	let squashX = 1
 	const v = (pl as any).vel?.y as number | undefined
@@ -488,7 +489,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
     const lean = Math.max(0, Math.min(1, (Math.abs(speed) / 320))) * maxLeanRad
     ctx.rotate(lean)
 
-    ctx.scale(squashX, stretchY)
+	ctx.scale(squashX, stretchY)
 
 	// Glow
 	ctx.save()
@@ -506,8 +507,8 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
 	let x = headRadius
 	for (let i = 0; i < waveCount; i++) {
 		const nx = headRadius - (w * (i + 0.5)) / waveCount
-		const ny = -4 + Math.sin(wavePhase + i) * waveAmp
-		ctx.quadraticCurveTo((x + nx) / 2, ny, nx, -6)
+		const ny = -4 + tailOffset + Math.sin(wavePhase + i) * waveAmp
+		ctx.quadraticCurveTo((x + nx) / 2, ny, nx, -6 + tailOffset)
 		x = nx
 	}
 	// Left side up
@@ -517,7 +518,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pl: Player, time: numb
 	ctx.fill()
 	ctx.restore()
 
-    // Face
+	// Face
 	ctx.save()
 	ctx.fillStyle = '#111827'
     // Eyes (shift slightly toward motion direction in local space)
