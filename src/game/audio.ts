@@ -5,6 +5,8 @@ type AudioCtx = AudioContext | null
 
 let ctx: AudioCtx = null
 let master: GainNode | null = null
+let comp: DynamicsCompressorNode | null = null
+let trim: GainNode | null = null
 // Rain layers: body (pink, low) + hiss (white, high)
 let rainBodySrc: AudioBufferSourceNode | null = null
 let rainHissSrc: AudioBufferSourceNode | null = null
@@ -13,6 +15,7 @@ let rainHissHP: BiquadFilterNode | null = null
 let rainHissLP: BiquadFilterNode | null = null
 let rainBodyGain: GainNode | null = null
 let rainHissGain: GainNode | null = null
+let rainMasterGain: GainNode | null = null
 // Subtle modulation
 let lfo: OscillatorNode | null = null
 let lfoGain: GainNode | null = null
@@ -27,9 +30,22 @@ let menuInterval: number | null = null
 function ensureCtx() {
 	if (!ctx) {
 		ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-		master = ctx.createGain()
-		master.gain.value = 0.6
-		master.connect(ctx.destination)
+        // Master chain: Gain -> Soft limiter (DynamicsCompressor) -> Destination
+        master = ctx.createGain()
+        master.gain.value = 0.28
+        comp = ctx.createDynamicsCompressor()
+        comp.threshold.value = -18 // dB, more conservative for Firefox
+        comp.knee.value = 24
+        comp.ratio.value = 16
+        comp.attack.value = 0.003
+        comp.release.value = 0.25
+        trim = ctx.createGain()
+        // Apply extra attenuation in Firefox only (browser parity)
+        const isFirefox = /firefox/i.test(navigator.userAgent)
+        trim.gain.value = isFirefox ? 0.6 : 1.0
+        master.connect(comp)
+        comp.connect(trim)
+        trim.connect(ctx.destination)
 	}
 }
 
@@ -93,7 +109,7 @@ export function playJump() {
 	const t0 = now()
 	const o = osc('triangle', 520)
 	const g = createGain(0)
-	env(g, t0, 0.003, 0.06, 0.0, 0.08, 0.6)
+    env(g, t0, 0.003, 0.06, 0.0, 0.08, 0.45)
 	o.connect(g).connect(master!)
 	o.start(t0)
 	o.frequency.exponentialRampToValueAtTime(280, t0 + 0.08)
@@ -106,7 +122,7 @@ export function playDoubleJump() {
     // Similar to first jump, but a touch higher and quieter
     const o = osc('triangle', 560)
     const g = createGain(0)
-    env(g, t0, 0.003, 0.06, 0.0, 0.08, 0.45)
+    env(g, t0, 0.003, 0.06, 0.0, 0.08, 0.35)
     o.connect(g).connect(master!)
     o.start(t0)
     o.frequency.exponentialRampToValueAtTime(320, t0 + 0.08)
@@ -119,7 +135,7 @@ export function playLand() {
 	const o = osc('sine', 140)
 	const g = createGain(0)
     // Reduced peak to soften landing volume
-    env(g, t0, 0.001, 0.05, 0.0, 0.08, 0.45)
+    env(g, t0, 0.001, 0.05, 0.0, 0.08, 0.35)
 	o.connect(g).connect(master!)
 	o.start(t0)
 	o.frequency.exponentialRampToValueAtTime(90, t0 + 0.06)
@@ -131,7 +147,7 @@ export function playDoor() {
 	const t0 = now()
 	const o = osc('square', 420)
 	const g = createGain(0)
-	env(g, t0, 0.004, 0.12, 0.0, 0.2, 0.5)
+    env(g, t0, 0.004, 0.12, 0.0, 0.2, 0.38)
 	o.connect(g).connect(master!)
 	o.start(t0)
 	o.frequency.linearRampToValueAtTime(660, t0 + 0.12)
@@ -148,10 +164,10 @@ export function playThunder() {
 	f.type = 'lowpass'
 	f.frequency.value = 800
 	// rolling envelope
-	g.gain.setValueAtTime(0, t0)
-	g.gain.linearRampToValueAtTime(0.9, t0 + 0.04)
-	g.gain.linearRampToValueAtTime(0.5, t0 + 0.4)
-	g.gain.linearRampToValueAtTime(0, t0 + 1.1)
+    g.gain.setValueAtTime(0, t0)
+    g.gain.linearRampToValueAtTime(0.5, t0 + 0.04)
+    g.gain.linearRampToValueAtTime(0.28, t0 + 0.4)
+    g.gain.linearRampToValueAtTime(0, t0 + 1.1)
 	src.connect(f).connect(g).connect(master!)
 	src.start(t0)
 	src.stop(t0 + 1.2)
@@ -163,7 +179,7 @@ export function playDeath() {
 	// Low thump + short noise burst
 	const o = osc('sine', 200)
 	const g = createGain(0)
-	env(g, t0, 0.002, 0.08, 0.0, 0.2, 0.8)
+    env(g, t0, 0.002, 0.08, 0.0, 0.2, 0.5)
 	o.connect(g).connect(master!)
 	o.start(t0)
 	o.frequency.exponentialRampToValueAtTime(90, t0 + 0.18)
@@ -173,9 +189,9 @@ export function playDeath() {
 	const nf = (ctx as AudioContext).createBiquadFilter()
 	nf.type = 'lowpass'
 	nf.frequency.value = 900
-	const ng = createGain(0.0)
+    const ng = createGain(0.0)
 	ng.gain.setValueAtTime(0, t0)
-	ng.gain.linearRampToValueAtTime(0.4, t0 + 0.02)
+    ng.gain.linearRampToValueAtTime(0.18, t0 + 0.02)
 	ng.gain.linearRampToValueAtTime(0, t0 + 0.18)
 	n.connect(nf).connect(ng).connect(master!)
 	n.start(t0)
@@ -193,7 +209,7 @@ export function startRainAmbience() {
 	bodyLP.type = 'lowpass'
 	bodyLP.frequency.value = 900
 	const bodyG = createGain(0.0)
-	body.connect(bodyLP).connect(bodyG).connect(master!)
+    body.connect(bodyLP).connect(bodyG)
 	body.start()
 	// Gentle hiss (white noise, tight band)
 	const hiss = (ctx as AudioContext).createBufferSource()
@@ -206,8 +222,15 @@ export function startRainAmbience() {
 	lp.type = 'lowpass'
 	lp.frequency.value = 4800
 	const hissG = createGain(0.0)
-	hiss.connect(hp).connect(lp).connect(hissG).connect(master!)
+    hiss.connect(hp).connect(lp).connect(hissG)
 	hiss.start()
+    // Rain overall trim (browser-specific)
+    if (!rainMasterGain) {
+        rainMasterGain = createGain(/firefox/i.test(navigator.userAgent) ? 0.075 : 0.85)
+        rainMasterGain.connect(master!)
+    }
+    bodyG.connect(rainMasterGain)
+    hissG.connect(rainMasterGain)
 	// Very light LFO for shimmer
 	const l = (ctx as AudioContext).createOscillator()
 	l.type = 'sine'
@@ -232,15 +255,19 @@ export function setRainIntensity(scale01: number) {
 	if (!rainBodySrc || !rainHissSrc) startRainAmbience()
 	const s = Math.max(0, Math.min(1, scale01))
 	const t = (ctx as AudioContext).currentTime
-	const bodyLevel = 0.10 * s // softer overall
-	const hissLevel = 0.05 * s
+    const isFirefox = /firefox/i.test(navigator.userAgent)
+    // Heavier attenuation for Firefox; raise non-FF further
+    const bodyBase = isFirefox ? 0.008 : 0.14
+    const hissBase = isFirefox ? 0.003 : 0.07
+    const bodyLevel = bodyBase * s
+    const hissLevel = hissBase * s
 	rainBodyGain!.gain.cancelScheduledValues(t)
 	rainBodyGain!.gain.linearRampToValueAtTime(bodyLevel, t + 0.12)
 	rainHissGain!.gain.cancelScheduledValues(t)
 	rainHissGain!.gain.linearRampToValueAtTime(hissLevel, t + 0.12)
 	// tighten band slightly with intensity
-	const hpCut = 2100 + 400 * s
-	const lpCut = 4600 + 600 * s
+    const hpCut = (isFirefox ? 1900 : 2100) + 300 * s
+    const lpCut = (isFirefox ? 3800 : 4600) + 300 * s
 	rainHissHP!.frequency.setTargetAtTime(hpCut, t, 0.25)
 	rainHissLP!.frequency.setTargetAtTime(lpCut, t, 0.25)
 }
