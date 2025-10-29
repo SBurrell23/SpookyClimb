@@ -7,8 +7,7 @@ export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h
 	ctx.fillStyle = g
 	ctx.fillRect(0, 0, w, h)
 
-	// Stars
-	drawStars(ctx, w, h, visualSeed)
+	// Stars are drawn after we compute the moon, with a clipped hole so they never overlap the moon
 
     // Seeded moon placement and size
     const rGen = seededRand((visualSeed ?? 12345) ^ 0x9e3779b9)
@@ -23,41 +22,9 @@ export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h
     const moonX = w * moonXRatio
     const moonY = h * moonYRatio
     const moonColor = '#e5e7eb'
-    if (opts?.moonAnimate && typeof opts.time === 'number') {
-        // Animated phase composed offscreen using destination-out to avoid halo
-        const speed = opts.moonPhaseSpeed ?? 0.35 // cycles per second (fast for testing)
-        const phaseSeed = rGen() // 0..1
-        const t = (phaseSeed + opts.time * speed) % 1 // 0=new -> 0.5=full -> 1=new
-        const m = Math.abs(2 * t - 1)
-        // Offscreen buffer around the moon
-        const size = Math.ceil(moonRadius * 2 + 4)
-        // Slight epsilon to avoid AA slivers when ellipse equals the disc edge
-        const rx = Math.max(0.0001, moonRadius * m + 0.4)
-        const ry = moonRadius + 0.4
-        const offset = Math.max(0, moonRadius - (rx - 0.4))
-        const cx0 = size / 2
-        const cx = t < 0.5 ? (cx0 - offset) : (cx0 + offset)
-        const buf = document.createElement('canvas')
-        buf.width = size
-        buf.height = size
-        const g = buf.getContext('2d')!
-        // Draw full moon disc
-        g.fillStyle = moonColor
-        g.beginPath()
-        g.arc(size / 2, size / 2, moonRadius, 0, Math.PI * 2)
-        g.fill()
-        // Subtract occluder ellipse (sky) using destination-out, so no AA overlap halo remains
-        g.globalCompositeOperation = 'destination-out'
-        g.beginPath()
-        g.ellipse(cx, size / 2, rx, ry, 0, 0, Math.PI * 2)
-        g.fill()
-        // Composite to main canvas
-        ctx.save()
-        ctx.globalAlpha = 1
-        ctx.drawImage(buf, Math.round(moonX - size / 2), Math.round(moonY - size / 2))
-        ctx.restore()
-    } else {
-        // Static full disc
+    // Static phase selection derived from seed (only new/full/crescents)
+    const phaseIndex = Math.floor(rGen() * 4) // 0=new,1=waxing crescent,2=full,3=waning crescent
+    function drawFull() {
         ctx.save()
         ctx.globalAlpha = 1
         ctx.fillStyle = moonColor
@@ -66,6 +33,70 @@ export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h
         ctx.fill()
         ctx.restore()
     }
+    function drawHalf(rightLit: boolean) {
+        ctx.save()
+        ctx.globalAlpha = 1
+        ctx.fillStyle = moonColor
+        const start = rightLit ? -Math.PI / 2 : Math.PI / 2
+        const end = rightLit ? Math.PI / 2 : -Math.PI / 2
+        ctx.beginPath()
+        if (rightLit) ctx.moveTo(moonX, moonY - moonRadius)
+        else ctx.moveTo(moonX, moonY + moonRadius)
+        ctx.arc(moonX, moonY, moonRadius, start, end, false)
+        if (rightLit) ctx.lineTo(moonX, moonY - moonRadius)
+        else ctx.lineTo(moonX, moonY + moonRadius)
+        ctx.closePath()
+        ctx.fill()
+        ctx.restore()
+    }
+    function drawCrescent(waxing: boolean, separation: number) {
+        const size = Math.ceil(moonRadius * 2 + 4)
+        const buf = document.createElement('canvas')
+        buf.width = size
+        buf.height = size
+        const g = buf.getContext('2d')!
+        // Full disc
+        g.fillStyle = moonColor
+        g.beginPath()
+        g.arc(size / 2, size / 2, moonRadius, 0, Math.PI * 2)
+        g.fill()
+        // Subtract occluder circle shifted slightly toward the LIT side opposite to desired crescent
+        // For a right crescent (waxing), occluder is shifted RIGHT (positive) so left is removed → right sliver remains
+        // For a left crescent (waning), occluder is shifted LEFT (negative) so right is removed → left sliver remains
+        const dx = (waxing ? separation : -separation)
+        g.globalCompositeOperation = 'destination-out'
+        g.beginPath()
+        g.arc(size / 2 + dx, size / 2, moonRadius, 0, Math.PI * 2)
+        g.fill()
+        // Composite
+        ctx.save()
+        ctx.globalAlpha = 1
+        ctx.drawImage(buf, Math.round(moonX - size / 2), Math.round(moonY - size / 2))
+        ctx.restore()
+    }
+
+    switch (phaseIndex) {
+        case 0: /* new */
+            break
+        case 1: /* waxing crescent (right) */
+            drawCrescent(true, Math.max(1, moonRadius * 0.35))
+            break
+        case 2: /* full */
+            drawFull()
+            break
+        case 3: /* waning crescent (left) */
+            drawCrescent(false, Math.max(1, moonRadius * 0.35))
+            break
+    }
+
+	// Draw stars with an exclusion area around the moon disc so stars never appear over the moon (lit or shadowed)
+	ctx.save()
+	const hole = new Path2D()
+	hole.rect(0, 0, w, h)
+	hole.arc(moonX, moonY, moonRadius + 1.2, 0, Math.PI * 2)
+	ctx.clip(hole, 'evenodd')
+	drawStars(ctx, w, h, visualSeed)
+	ctx.restore()
 
 	// Mountains silhouettes - seeded variation per layer
 	ctx.save()

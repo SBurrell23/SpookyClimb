@@ -194,7 +194,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			const fog = level.palette.fog
 			document.body.style.setProperty('--accent-border', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.45)'))
 			document.body.style.setProperty('--accent-shadow', fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
-            drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0, { moonAnimate: true, moonPhaseSpeed: 0.6, time })
+            drawSpookyBackground(ctx, view.width, view.height, level.palette.sky, level.visualSeed ?? 0)
             drawFog(ctx, view.width, view.height, time, level.palette.fog)
 
 			// Calculate progress (0..1)
