@@ -17,6 +17,6 @@ import GameCanvas from './components/GameCanvas.vue'
 }
 .help { color: #cbd5e1; font-size: 0.9rem; }
 .game-canvas {
-	margin-top: 40px;
+	margin-top: 40px; 
 }
 </style>
