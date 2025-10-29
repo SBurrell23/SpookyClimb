@@ -9,10 +9,11 @@ export type KeyState = {
     enter?: boolean
     backspace?: boolean
     lastDigit?: string | null
+    escape?: boolean
 }
 
 export function createInput() {
-    const state: KeyState = { left: false, right: false, jump: false, reset: false, down: false, level: null, enter: false, backspace: false, lastDigit: null }
+    const state: KeyState = { left: false, right: false, jump: false, reset: false, down: false, level: null, enter: false, backspace: false, lastDigit: null, escape: false }
 
     function onKeyDown(e: KeyboardEvent) {
         switch (e.key) {
@@ -38,6 +39,7 @@ export function createInput() {
             // case '5': state.level = 5; break
             case 'Enter': state.enter = true; break
             case 'Backspace': state.backspace = true; break
+            case 'Escape': state.escape = true; break
             default:
                 if (/^[0-9]$/.test(e.key)) {
                     state.lastDigit = e.key
@@ -64,6 +66,7 @@ export function createInput() {
             // case 'R': state.reset = false; break
             case 'Enter': state.enter = false; break
             case 'Backspace': state.backspace = false; break
+            case 'Escape': state.escape = false; break
         }
     }
 

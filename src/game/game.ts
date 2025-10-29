@@ -34,6 +34,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
     let prevRightHeld = false
     let prevEnterHeld = false
     let prevBackspaceHeld = false
+    let prevEscapeHeld = false
 
 	let last = performance.now()
 	let running = true
@@ -149,7 +150,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	}
 
     function beginLevelTransition() {
-		if (mode === 'transition') return
+        if (mode === 'transition') return
 		// Queue next level (or end)
         queuedNextLevelIndex = currentLevelIndex >= activeLevels.length - 1 ? null : currentLevelIndex + 1
 		// Record level time now
@@ -285,16 +286,25 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
             prevRightHeld = input.state.right
             prevEnterHeld = !!input.state.enter
             prevBackspaceHeld = !!input.state.backspace
+            prevEscapeHeld = !!input.state.escape
 			return
 		}
 	if (mode === 'end') {
 			// Press space to restart
 			if (input.state.jump && !prevJumpHeld) startGame()
+            // Allow Escape to refresh to home
+            if (input.state.escape && !prevEscapeHeld) {
+                window.location.reload()
+                return
+            }
+            prevEscapeHeld = !!input.state.escape
 			return
 		}
 	if (mode === 'transition') {
 		// Inputs disabled
-		prevJumpHeld = input.state.jump
+        prevJumpHeld = input.state.jump
+        if (input.state.escape && !prevEscapeHeld) { window.location.reload(); return }
+        prevEscapeHeld = !!input.state.escape
 		if (transitionPhase === 'launch') {
 			transitionTimer += dt
 			// move upward fast, slight extra boost
@@ -332,7 +342,11 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	}
 
 		levelElapsed += dt
-		// If waiting to respawn, count down and respawn when time elapses
+        // Escape → refresh back to start
+        if (input.state.escape && !prevEscapeHeld) { window.location.reload(); return }
+        prevEscapeHeld = !!input.state.escape
+
+        // If waiting to respawn, count down and respawn when time elapses
 		if (respawnTimer > 0) {
 			respawnTimer -= dt
 			if (respawnTimer <= 0) {
