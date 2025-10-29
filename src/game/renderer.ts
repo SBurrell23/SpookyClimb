@@ -54,7 +54,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			;(this as any)._fadeInDuration = durationSec
 			;(this as any)._fadeInTime = durationSec
 		},
-			renderStartScreen(title = 'Spooky Climb', subtitle = 'Press Space to Play', palette = { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }) {
+			renderStartScreen(title = 'Spooky Climb', subtitle = 'Press Space to Play', palette = { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }, menu?: { selected: number; seedInput: string }) {
 			time += 1 / 60
 			// Set page background/accent to match start palette
 			document.body.style.setProperty('--bg1', palette.sky)
@@ -85,6 +85,59 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.font = '600 22px ui-sans-serif, system-ui, -apple-system, Segoe UI'
 			ctx.fillText('Press Space to Climb', view.width / 2, titleY + 88)
 			ctx.restore()
+			// Seed mode options
+			const options = ['Classic', 'Random', 'Enter Seed']
+			const selected = menu?.selected ?? 0
+			const seedStr = (menu?.seedInput ?? '')
+			const baseY = titleY + 140
+			ctx.save()
+			ctx.textAlign = 'center'
+			ctx.textBaseline = 'middle'
+			ctx.font = '600 18px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+			for (let i = 0; i < options.length; i++) {
+				const x = view.width / 2 + (i - 1) * 180
+				const y = baseY
+				const isSel = i === selected
+				ctx.globalAlpha = isSel ? 1 : 0.7
+				ctx.fillStyle = isSel ? 'rgba(24,24,27,0.85)' : 'rgba(24,24,27,0.65)'
+				ctx.strokeStyle = isSel ? 'rgba(236,253,245,0.85)' : 'rgba(255,255,255,0.35)'
+				const w = 160, h = 42
+				ctx.beginPath()
+				ctx.roundRect(x - w / 2, y - h / 2, w, h, 10)
+				ctx.fill()
+				ctx.lineWidth = isSel ? 2.2 : 1.2
+				ctx.stroke()
+				ctx.fillStyle = '#f8fafc'
+				ctx.globalAlpha = isSel ? 0.95 : 0.8
+				ctx.fillText(options[i]!, x, y)
+			}
+			ctx.restore()
+			// Seed input row (only for Enter Seed)
+			if (selected === 2) {
+				ctx.save()
+				ctx.textAlign = 'center'
+				ctx.textBaseline = 'middle'
+				ctx.font = '500 16px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+				const labelY = baseY + 56
+				ctx.fillStyle = 'rgba(255,255,255,0.82)'
+				ctx.fillText('Enter 8-digit seed:', view.width / 2, labelY)
+				const boxW = 260, boxH = 40
+				const bx = view.width / 2 - boxW / 2
+				const by = labelY + 34
+				ctx.globalAlpha = 0.9
+				ctx.fillStyle = 'rgba(24,24,27,0.85)'
+				ctx.beginPath()
+				ctx.roundRect(bx, by, boxW, boxH, 8)
+				ctx.fill()
+				ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+				ctx.lineWidth = 1.5
+				ctx.stroke()
+				ctx.fillStyle = 'rgba(255,255,255,0.92)'
+				ctx.font = '600 18px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+				const shown = (seedStr || '').padEnd(8, '•').slice(0, 8)
+				ctx.fillText(shown, view.width / 2, by + boxH / 2)
+				ctx.restore()
+			}
 			drawVignette(ctx, view.width, view.height)
 			// Soft rain ambience on start screen
 			startRainAmbience()
@@ -117,7 +170,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			drawHappyGhost(ctx, view.width / 2 - 20, Math.floor(view.height * 0.62) + 100, 40, 52, time)
 			drawVignette(ctx, view.width, view.height)
 		},
-			render(level: LevelDefinition, player: Player, enemies: EnemyPlaceholder[], camera: { x: number; y: number }, dt: number, platforms: Platform[]) {
+			render(level: LevelDefinition, player: Player, enemies: EnemyPlaceholder[], camera: { x: number; y: number }, dt: number, platforms: Platform[], allLevels?: LevelDefinition[], seedLabel?: string) {
 			time += dt
 			;(this as any)._flashTime = (this as any)._flashTime ?? 0
 			;(this as any)._flashDuration = (this as any)._flashDuration ?? 0.5
@@ -210,13 +263,18 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			updateAndDrawDust(ctx, dust, dt)
 			ctx.restore()
 
-            // Level title top-left
+			// Level title top-left
 			ctx.save()
 			ctx.fillStyle = 'rgba(255,255,255,0.8)'
 			ctx.font = '16px ui-sans-serif, system-ui, -apple-system, Segoe UI'
 			ctx.textAlign = 'left'
 			ctx.textBaseline = 'top'
 			ctx.fillText(level.title, 12, 10)
+			if (seedLabel) {
+				ctx.fillStyle = 'rgba(255,255,255,0.55)'
+				ctx.font = '12px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+				ctx.fillText(seedLabel, 12, 30)
+			}
 			ctx.restore()
 
             // Grass overlay on top of player/items for depth
@@ -338,7 +396,8 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 
 			// Bottom-left level tally: five tiny tombstones with current glowing and completed filled
 			ctx.save()
-			const totalLevels = LEVELS.length
+			const pool = allLevels ?? LEVELS
+			const totalLevels = pool.length
 			const currentIndex = Math.max(0, Math.min(totalLevels - 1, (level.id ?? 1) - 1))
 			const miniW = 16
 			const miniH = 20
@@ -379,7 +438,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.save()
 				ctx.globalCompositeOperation = 'multiply'
 				ctx.globalAlpha = isCurrent ? 0.6 : (isFuture ? 0.25 : 0.45)
-				ctx.fillStyle = LEVELS[i]?.palette?.ground ?? '#1f2937'
+				ctx.fillStyle = pool[i]?.palette?.ground ?? '#1f2937'
 				ctx.beginPath()
 				ctx.moveTo(x, y)
 				ctx.lineTo(x, topY + miniH * 0.3)

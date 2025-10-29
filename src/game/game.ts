@@ -1,7 +1,7 @@
 import type { GameDimensions, LevelDefinition, Platform } from './types'
 import { createRenderer } from './renderer'
 import { createInput } from './input'
-import { LEVELS } from './levels'
+import { LEVELS, buildClassicLevels, buildLevelsFromBaseSeed } from './levels'
 import { createPlayer, stepPlayer } from './physics'
 import { createCamera } from './camera'
 import { playJump, playDoubleJump, playLand, playDoor, startRainAmbience, setRainIntensity, playDeath } from './audio'
@@ -10,15 +10,30 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	const ctx = canvas.getContext('2d')!
 	ctx.imageSmoothingEnabled = false
 
-	let currentLevelIndex = 0
-	let level: LevelDefinition = LEVELS[currentLevelIndex]!
+    // Active level pool (may be classic or from a base seed)
+    let activeLevels: LevelDefinition[] = LEVELS
+    let currentLevelIndex = 0
+    let level: LevelDefinition = activeLevels[currentLevelIndex]!
 	let player = createPlayer(level.spawn)
 	const input = createInput()
 	const camera = createCamera(view, level.bounds)
 	const renderer = createRenderer(ctx, view)
 
-	type Mode = 'start' | 'playing' | 'transition' | 'end'
+    type Mode = 'start' | 'playing' | 'transition' | 'end'
 	let mode: Mode = 'start'
+
+    // Start menu seed selection state
+    type SeedMode = 'classic' | 'random' | 'custom'
+    let menuSelected = 0 // 0 Classic, 1 Random, 2 Enter Seed
+    let seedMode: SeedMode = 'classic'
+    let customSeedInput = '' // 0..8 digits
+    let baseSeedLabel: string | null = null // Shown under level title (Classic or 8-digit)
+
+    // Edge tracking for menu input
+    let prevLeftHeld = false
+    let prevRightHeld = false
+    let prevEnterHeld = false
+    let prevBackspaceHeld = false
 
 	let last = performance.now()
 	let running = true
@@ -42,11 +57,27 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	const levelTimes: number[] = []
 	let levelElapsed = 0
 
-	function startGame() {
+    function startGame() {
 		mode = 'playing'
 		// Stop menu music if any via renderer side; ensure gameplay is music-free
-		currentLevelIndex = 0
-		level = LEVELS[currentLevelIndex]!
+        currentLevelIndex = 0
+        // Determine level pool based on selection
+        if (menuSelected === 0) {
+            seedMode = 'classic'
+            activeLevels = buildClassicLevels()
+            baseSeedLabel = 'Classic'
+        } else if (menuSelected === 1) {
+            seedMode = 'random'
+            const rand8 = Array.from({ length: 8 }, () => Math.floor(Math.random() * 10)).join('')
+            activeLevels = buildLevelsFromBaseSeed(rand8)
+            baseSeedLabel = rand8
+        } else {
+            seedMode = 'custom'
+            const normalized = customSeedInput.replace(/\D/g, '').padStart(8, '0').slice(0, 8)
+            activeLevels = buildLevelsFromBaseSeed(normalized)
+            baseSeedLabel = normalized
+        }
+        level = activeLevels[currentLevelIndex]!
 		player = createPlayer(level.spawn)
 		camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
 		levelTimes.length = 0
@@ -60,10 +91,10 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		startRainAmbience()
 	}
 
-	function beginLevelTransition() {
+    function beginLevelTransition() {
 		if (mode === 'transition') return
 		// Queue next level (or end)
-		queuedNextLevelIndex = currentLevelIndex >= LEVELS.length - 1 ? null : currentLevelIndex + 1
+        queuedNextLevelIndex = currentLevelIndex >= activeLevels.length - 1 ? null : currentLevelIndex + 1
 		// Record level time now
 		levelTimes.push(levelElapsed)
 		levelElapsed = 0
@@ -76,10 +107,10 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		player.vel.x = 0
 	}
 
-	function resetLevel(idx = currentLevelIndex) {
+    function resetLevel(idx = currentLevelIndex) {
 		currentLevelIndex = idx
-		const next = LEVELS[currentLevelIndex]
-		level = next ?? LEVELS[0]!
+        const next = activeLevels[currentLevelIndex]
+        level = next ?? activeLevels[0]!
 		player = createPlayer(level.spawn)
 		// Immediately snap camera to player in new bounds
 		camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
@@ -106,16 +137,16 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		return overlapArea >= playerArea * 0.5
 	}
 
-	function advanceToTargetLevel() {
+    function advanceToTargetLevel() {
 		// Record level time
 		levelTimes.push(levelElapsed)
 		levelElapsed = 0
-		if (currentLevelIndex >= 4) {
+        if (currentLevelIndex >= activeLevels.length - 1) {
 			mode = 'end'
 			return
 		}
 		currentLevelIndex++
-		level = LEVELS[currentLevelIndex]!
+        level = activeLevels[currentLevelIndex]!
 		player = createPlayer(level.spawn)
 		camera.follow({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 })
 		renderer.triggerFadeIn(FADE_IN_DURATION)
@@ -154,10 +185,43 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		return null
 	}
 
-	function update(dt: number, tPrev: number, tCurr: number) {
+    function update(dt: number, tPrev: number, tCurr: number) {
 		if (mode === 'start') {
-			// Press space to begin
-			if (input.state.jump && !prevJumpHeld) startGame()
+            // Menu navigation: left/right changes selection (edge only)
+            if (input.state.left && !prevLeftHeld) {
+                menuSelected = (menuSelected + 2) % 3
+            }
+            if (input.state.right && !prevRightHeld) {
+                menuSelected = (menuSelected + 1) % 3
+            }
+            // Custom seed input handling
+            if (menuSelected === 2) {
+                const d = (input.state.lastDigit ?? null)
+                if (d && customSeedInput.length < 8) {
+                    customSeedInput += d
+                    input.state.lastDigit = null
+                }
+                if (input.state.backspace && !prevBackspaceHeld) {
+                    customSeedInput = customSeedInput.slice(0, -1)
+                }
+            } else {
+                // Clear any residual digit
+                input.state.lastDigit = null
+            }
+            // Press space or enter to begin
+            const confirmPressed = (input.state.jump && !prevJumpHeld) || (!!input.state.enter && !prevEnterHeld)
+            if (confirmPressed) {
+                if (menuSelected === 2 && customSeedInput.length < 8) {
+                    // Require 8 digits; ignore start until valid
+                } else {
+                    startGame()
+                }
+            }
+            // track edges
+            prevLeftHeld = input.state.left
+            prevRightHeld = input.state.right
+            prevEnterHeld = !!input.state.enter
+            prevBackspaceHeld = !!input.state.backspace
 			return
 		}
 	if (mode === 'end') {
@@ -215,9 +279,9 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		}
 
 		// Handle level switching keys for testing
-		if (input.state.level) {
+        if (input.state.level) {
 			const idx = input.state.level - 1
-			if (idx >= 0 && idx < LEVELS.length) resetLevel(idx)
+            if (idx >= 0 && idx < activeLevels.length) resetLevel(idx)
 			input.state.level = null
 		}
 		if (input.state.reset) {
@@ -315,14 +379,15 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		update(dt, tPrev, tCurr)
 		const platforms = computePlatforms(elapsed)
 		attachEntitiesToPlatforms(platforms)
-		if (mode === 'start') {
-			renderer.renderStartScreen('Spooky Climb', 'Press Space to Play')
+        if (mode === 'start') {
+            renderer.renderStartScreen('Spooky Climb', 'Press Space to Play', { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }, { selected: menuSelected, seedInput: customSeedInput })
 		} else if (mode === 'end') {
 			const total = levelTimes.reduce((a, b) => a + b, 0)
-			const names = LEVELS.map(l => l.title)
+            const names = activeLevels.map(l => l.title)
 			renderer.renderEndScreen(levelTimes, total, names)
 		} else {
-			renderer.render(level, player, level.enemies, camera.pos, dt, platforms)
+            const seedLabel = baseSeedLabel ?? 'Classic'
+            renderer.render(level, player, level.enemies, camera.pos, dt, platforms, activeLevels, seedLabel)
 		}
 		requestAnimationFrame(frame)
 	}

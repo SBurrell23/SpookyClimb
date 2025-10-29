@@ -199,10 +199,32 @@ function mulberry32(a: number) {
 	}
 }
 
-export const LEVELS: LevelDefinition[] = [
-	generateVerticalLevel(1, 1600, 9600, 1337, 35), //35
-	generateVerticalLevel(2, 1600, 9600, 424242, 50), //50
-	generateVerticalLevel(3, 1600, 9600, 9876, 85), //85
-	generateVerticalLevel(4, 1600, 9600, 20241, 125), //125
-	generateVerticalLevel(5, 1600, 9600, 55555, 166), //166
-]
+// Classic level seeds and steps (current defaults)
+const CLASSIC_SEEDS = [1337, 424242, 9876, 20241, 55555]
+const CLASSIC_STEPS = [35, 50, 85, 125, 166]
+
+export function buildClassicLevels(): LevelDefinition[] {
+    return [
+        generateVerticalLevel(1, 1600, 9600, CLASSIC_SEEDS[0]!, CLASSIC_STEPS[0]!),
+        generateVerticalLevel(2, 1600, 9600, CLASSIC_SEEDS[1]!, CLASSIC_STEPS[1]!),
+        generateVerticalLevel(3, 1600, 9600, CLASSIC_SEEDS[2]!, CLASSIC_STEPS[2]!),
+        generateVerticalLevel(4, 1600, 9600, CLASSIC_SEEDS[3]!, CLASSIC_STEPS[3]!),
+        generateVerticalLevel(5, 1600, 9600, CLASSIC_SEEDS[4]!, CLASSIC_STEPS[4]!),
+    ]
+}
+
+// Build a 5-level set from an 8-digit base seed by appending the level number (1..5)
+export function buildLevelsFromBaseSeed(baseSeedStr: string): LevelDefinition[] {
+    const normalized = (baseSeedStr || '').replace(/\D/g, '').padStart(8, '0').slice(0, 8)
+    const levels: LevelDefinition[] = []
+    for (let i = 0; i < 5; i++) {
+        const id = i + 1
+        const seedNum = parseInt(`${normalized}${id % 10}`, 10)
+        const steps = CLASSIC_STEPS[i]!
+        levels.push(generateVerticalLevel(id, 1600, 9600, seedNum, steps))
+    }
+    return levels
+}
+
+// Default export used by existing code paths: classic levels
+export const LEVELS: LevelDefinition[] = buildClassicLevels()
