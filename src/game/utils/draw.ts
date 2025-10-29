@@ -1,6 +1,6 @@
 import type { Collectible, Platform, Player } from '../types'
 
-export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h: number, sky: string, visualSeed?: number, opts?: { moonBiasX?: number; moonBiasY?: number }) {
+export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h: number, sky: string, visualSeed?: number, opts?: { moonBiasX?: number; moonBiasY?: number; moonAnimate?: boolean; moonPhaseSpeed?: number; time?: number }) {
 	const g = ctx.createLinearGradient(0, 0, 0, h)
 	g.addColorStop(0, sky)
 	g.addColorStop(1, '#03060c')
@@ -20,13 +20,52 @@ export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h
     moonXRatio = Math.max(0.05, Math.min(0.95, moonXRatio))
     moonYRatio = Math.max(0.05, Math.min(0.5, moonYRatio))
 	const moonRadius = 24 + rGen() * 30 // px; min 24, max 54
-	ctx.save()
-	ctx.globalAlpha = 0.9
-	ctx.fillStyle = '#e5e7eb'
-	ctx.beginPath()
-	ctx.arc(w * moonXRatio, h * moonYRatio, moonRadius, 0, Math.PI * 2)
-	ctx.fill()
-	ctx.restore()
+    const moonX = w * moonXRatio
+    const moonY = h * moonYRatio
+    const moonColor = '#e5e7eb'
+    if (opts?.moonAnimate && typeof opts.time === 'number') {
+        // Animated phase composed offscreen using destination-out to avoid halo
+        const speed = opts.moonPhaseSpeed ?? 0.35 // cycles per second (fast for testing)
+        const phaseSeed = rGen() // 0..1
+        const t = (phaseSeed + opts.time * speed) % 1 // 0=new -> 0.5=full -> 1=new
+        const m = Math.abs(2 * t - 1)
+        // Offscreen buffer around the moon
+        const size = Math.ceil(moonRadius * 2 + 4)
+        // Slight epsilon to avoid AA slivers when ellipse equals the disc edge
+        const rx = Math.max(0.0001, moonRadius * m + 0.4)
+        const ry = moonRadius + 0.4
+        const offset = Math.max(0, moonRadius - (rx - 0.4))
+        const cx0 = size / 2
+        const cx = t < 0.5 ? (cx0 - offset) : (cx0 + offset)
+        const buf = document.createElement('canvas')
+        buf.width = size
+        buf.height = size
+        const g = buf.getContext('2d')!
+        // Draw full moon disc
+        g.fillStyle = moonColor
+        g.beginPath()
+        g.arc(size / 2, size / 2, moonRadius, 0, Math.PI * 2)
+        g.fill()
+        // Subtract occluder ellipse (sky) using destination-out, so no AA overlap halo remains
+        g.globalCompositeOperation = 'destination-out'
+        g.beginPath()
+        g.ellipse(cx, size / 2, rx, ry, 0, 0, Math.PI * 2)
+        g.fill()
+        // Composite to main canvas
+        ctx.save()
+        ctx.globalAlpha = 1
+        ctx.drawImage(buf, Math.round(moonX - size / 2), Math.round(moonY - size / 2))
+        ctx.restore()
+    } else {
+        // Static full disc
+        ctx.save()
+        ctx.globalAlpha = 1
+        ctx.fillStyle = moonColor
+        ctx.beginPath()
+        ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+    }
 
 	// Mountains silhouettes - seeded variation per layer
 	ctx.save()
