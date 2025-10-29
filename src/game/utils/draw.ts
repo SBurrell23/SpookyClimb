@@ -1,6 +1,6 @@
 import type { Collectible, Platform, Player } from '../types'
 
-export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h: number, sky: string, visualSeed?: number) {
+export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h: number, sky: string, visualSeed?: number, opts?: { moonBiasX?: number; moonBiasY?: number }) {
 	const g = ctx.createLinearGradient(0, 0, 0, h)
 	g.addColorStop(0, sky)
 	g.addColorStop(1, '#03060c')
@@ -10,10 +10,15 @@ export function drawSpookyBackground(ctx: CanvasRenderingContext2D, w: number, h
 	// Stars
 	drawStars(ctx, w, h, visualSeed)
 
-	// Seeded moon placement and size
-	const rGen = seededRand((visualSeed ?? 12345) ^ 0x9e3779b9)
-	const moonXRatio = 0.2 + rGen() * 0.65 // 20%..85% of width
-	const moonYRatio = 0.12 + rGen() * 0.12 // 12%..24% of height
+    // Seeded moon placement and size
+    const rGen = seededRand((visualSeed ?? 12345) ^ 0x9e3779b9)
+    const bx = opts?.moonBiasX ?? 0
+    const by = opts?.moonBiasY ?? 0
+    let moonXRatio = 0.2 + rGen() * 0.65 + bx // default spread, biased right if bx > 0
+    let moonYRatio = 0.12 + rGen() * 0.12 + by // default spread, biased up if by < 0
+    // Clamp to sensible bounds
+    moonXRatio = Math.max(0.05, Math.min(0.95, moonXRatio))
+    moonYRatio = Math.max(0.05, Math.min(0.5, moonYRatio))
 	const moonRadius = 24 + rGen() * 30 // px; min 24, max 54
 	ctx.save()
 	ctx.globalAlpha = 0.9

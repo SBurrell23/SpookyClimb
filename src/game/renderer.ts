@@ -62,7 +62,7 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			document.body.style.setProperty('--bg3', 'rgba(0,0,0,1)')
 			document.body.style.setProperty('--accent-border', palette.fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.45)'))
 			document.body.style.setProperty('--accent-shadow', palette.fog.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^\)]+\)/, 'rgba($1,$2,$3,0.25)'))
-			drawSpookyBackground(ctx, view.width, view.height, palette.sky)
+			drawSpookyBackground(ctx, view.width, view.height, palette.sky, undefined, { moonBiasX: 0.22, moonBiasY: -0.06 })
 			drawFog(ctx, view.width, view.height, time, palette.fog)
 			// Title (spooky typography, centered vertically; no ghost)
 			ctx.save()
@@ -72,24 +72,19 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 			ctx.shadowColor = 'rgba(168,85,247,0.6)'
 			ctx.shadowBlur = 22
 			ctx.font = '400 88px "Creepster", ui-serif, Georgia, Times New Roman'
-			const titleY = Math.floor(view.height * 0.46)
+			const titleY = Math.floor(view.height * 0.40) - 15
 			ctx.fillText(title.toUpperCase(), view.width / 2, titleY)
 			// Thin outline to lighten visual weight
 			ctx.strokeStyle = 'rgba(11,11,23,0.9)'
 			ctx.lineWidth = 1.5
 			ctx.strokeText(title.toUpperCase(), view.width / 2, titleY)
 			ctx.shadowBlur = 0
-			// Pulsing prompt
-			const pulse = (Math.sin(time * 3) + 1) * 0.5
-			ctx.globalAlpha = 0.55 + 0.4 * pulse
-			ctx.font = '600 22px ui-sans-serif, system-ui, -apple-system, Segoe UI'
-			ctx.fillText('Press Space to Climb', view.width / 2, titleY + 88)
 			ctx.restore()
 			// Seed mode options
 			const options = ['Classic', 'Random', 'Enter Seed']
 			const selected = menu?.selected ?? 0
 			const seedStr = (menu?.seedInput ?? '')
-			const baseY = titleY + 140
+			const baseY = titleY + 120
 			ctx.save()
 			ctx.textAlign = 'center'
 			ctx.textBaseline = 'middle'
@@ -138,6 +133,17 @@ export function createRenderer(ctx: CanvasRenderingContext2D, view: GameDimensio
 				ctx.fillText(shown, view.width / 2, by + boxH / 2)
 				ctx.restore()
 			}
+			// Pulsing prompt under options (and lower if entering seed)
+			ctx.save()
+			const pulse = (Math.sin(time * 3) + 1) * 0.5
+			ctx.globalAlpha = 0.55 + 0.4 * pulse
+			ctx.textAlign = 'center'
+			ctx.textBaseline = 'middle'
+			ctx.font = '600 22px ui-sans-serif, system-ui, -apple-system, Segoe UI'
+			ctx.fillStyle = '#ffffff'
+			const promptY = selected === 2 ? (baseY + 56 + 34 + 40 + 36 + 12) : (baseY + 70 + 12)
+			ctx.fillText('Press Space to Climb', view.width / 2, promptY)
+			ctx.restore()
 			drawVignette(ctx, view.width, view.height)
 			// Soft rain ambience on start screen
 			startRainAmbience()

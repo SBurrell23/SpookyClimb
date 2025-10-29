@@ -24,8 +24,8 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 
     // Start menu seed selection state
     type SeedMode = 'classic' | 'random' | 'custom'
-    let menuSelected = 0 // 0 Classic, 1 Random, 2 Enter Seed
-    let seedMode: SeedMode = 'classic'
+    let menuSelected = 1 // 0 Classic, 1 Random, 2 Enter Seed
+    let seedMode: SeedMode = 'random'
     let customSeedInput = '' // 0..8 digits
     let baseSeedLabel: string | null = null // Shown under level title (Classic or 8-digit)
 
@@ -56,6 +56,60 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	// Timing
 	const levelTimes: number[] = []
 	let levelElapsed = 0
+
+    // --- Start screen click support ---
+    type Rect = { x: number; y: number; w: number; h: number }
+    function getStartMenuButtonRects(): Rect[] {
+        const titleY = Math.floor(view.height * 0.40) - 15
+        const baseY = titleY + 120
+        const w = 160, h = 42
+        const rects: Rect[] = []
+        for (let i = 0; i < 3; i++) {
+            const cx = view.width / 2 + (i - 1) * 180
+            const cy = baseY
+            rects.push({ x: cx - w / 2, y: cy - h / 2, w, h })
+        }
+        return rects
+    }
+    function getSeedInputRectIfVisible(): Rect | null {
+        if (menuSelected !== 2) return null
+        const titleY = Math.floor(view.height * 0.40) - 15
+        const baseY = titleY + 120
+        const labelY = baseY + 56
+        const boxW = 260, boxH = 40
+        const bx = view.width / 2 - boxW / 2
+        const by = labelY + 34
+        return { x: bx, y: by, w: boxW, h: boxH }
+    }
+    function pointInRect(px: number, py: number, r: Rect): boolean {
+        return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h
+    }
+    function toCanvasSpace(clientX: number, clientY: number) {
+        const rect = canvas.getBoundingClientRect()
+        const scaleX = canvas.width / rect.width
+        const scaleY = canvas.height / rect.height
+        return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }
+    }
+    function onPointerDown(e: MouseEvent) {
+        if (mode !== 'start') return
+        const p = toCanvasSpace(e.clientX, e.clientY)
+        const rects = getStartMenuButtonRects()
+        for (let i = 0; i < rects.length; i++) {
+            if (pointInRect(p.x, p.y, rects[i]!)) {
+                if (i === menuSelected) {
+                    if (i !== 2 || customSeedInput.length >= 8) startGame()
+                } else {
+                    menuSelected = i
+                }
+                return
+            }
+        }
+        const inputRect = getSeedInputRectIfVisible()
+        if (inputRect && pointInRect(p.x, p.y, inputRect)) {
+            menuSelected = 2
+            return
+        }
+    }
 
     function startGame() {
 		mode = 'playing'
@@ -89,6 +143,9 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		respawnTimer = 0
 		renderer.triggerFadeIn(FADE_IN_DURATION)
 		startRainAmbience()
+		// Prevent immediate jump from start press
+		input.state.jump = false
+		prevJumpHeld = true
 	}
 
     function beginLevelTransition() {
@@ -201,8 +258,14 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
                     customSeedInput += d
                     input.state.lastDigit = null
                 }
+                // If buffer is full and a digit was pressed, clear it so it won't be applied later
+                if (input.state.lastDigit && customSeedInput.length >= 8) {
+                    input.state.lastDigit = null
+                }
                 if (input.state.backspace && !prevBackspaceHeld) {
                     customSeedInput = customSeedInput.slice(0, -1)
+                    // Clear any pending digit so it doesn't re-appear after deletion
+                    input.state.lastDigit = null
                 }
             } else {
                 // Clear any residual digit
@@ -369,7 +432,7 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		setRainIntensity(0.10 + 0.90 * rainScale)
 	}
 
-	function frame(now: number) {
+    function frame(now: number) {
 		if (!running) return
 		const dt = Math.min(1 / 30, (now - last) / 1000)
 		const tPrev = elapsed
@@ -380,12 +443,15 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 		const platforms = computePlatforms(elapsed)
 		attachEntitiesToPlatforms(platforms)
         if (mode === 'start') {
+            // Ensure mouse listener is attached
+            canvas.addEventListener('mousedown', onPointerDown)
             renderer.renderStartScreen('Spooky Climb', 'Press Space to Play', { sky: '#0b1220', fog: 'rgba(124,58,237,0.08)' }, { selected: menuSelected, seedInput: customSeedInput })
 		} else if (mode === 'end') {
 			const total = levelTimes.reduce((a, b) => a + b, 0)
             const names = activeLevels.map(l => l.title)
 			renderer.renderEndScreen(levelTimes, total, names)
 		} else {
+            canvas.removeEventListener('mousedown', onPointerDown)
             const seedLabel = baseSeedLabel ?? 'Classic'
             renderer.render(level, player, level.enemies, camera.pos, dt, platforms, activeLevels, seedLabel)
 		}
@@ -397,5 +463,6 @@ export function createGame(canvas: HTMLCanvasElement, view: GameDimensions) {
 	return () => {
 		running = false
 		input.dispose()
+		canvas.removeEventListener('mousedown', onPointerDown)
 	}
 }
